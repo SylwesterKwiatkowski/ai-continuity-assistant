@@ -17,3 +17,4 @@ class AssistantResponse(BaseModel):
     approval_id: str | None = None
     note: str = ""
     audit_event_ids: list[str] = Field(default_factory=list)
+    gaps: list[str] = Field(default_factory=list)

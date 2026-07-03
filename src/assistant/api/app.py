@@ -11,6 +11,8 @@ from fastapi import FastAPI
 
 from assistant import __version__
 from assistant.config import Settings, get_settings
+from assistant.orchestrator.service import build_default_orchestrator
+from assistant.web.routes import router as web_router
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -22,6 +24,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         version=__version__,
     )
     app.state.settings = settings
+    app.state.orchestrator = build_default_orchestrator()
+
+    app.include_router(web_router)
 
     @app.get("/health", tags=["meta"])
     def health() -> dict[str, str]:

@@ -70,14 +70,20 @@ Living document. Updated each implementation loop.
 - Orchestrator decoupled from mock classes via connector Ports (`connectors/protocols.py`).
 - `get_blockers` takes an injectable `today`; token store raises on unknown refs (63 tests).
 
-### M6 — Security test suite (acceptance gate)
-- All Phase-6 tests below green.
+### M6 — Security test suite (acceptance gate)  ✅ DONE
+- `tests/test_security_acceptance.py`: 12 named tests `test_p6_01`–`test_p6_12` mapping the full
+  Phase-6 list, asserting invariants (flags, exceptions, audit fields, sentinel absence).
 
-### M7 — Simple web app
-- FastAPI + Jinja2 + HTMX over the existing API. Pages:
-  query/chat (cited summaries + source links) · **Connections** (connect/disconnect the 7 apps) ·
-  action confirmation (write-as-active_user) · read-only **admin** audit + policy view.
-- **Milestone:** the flagship flow is fully runnable in the browser; connections manageable in UI.
+### M7 — Simple web app  ✅ DONE
+- `src/assistant/web/` (FastAPI router + Jinja2 templates, plain-form posts; HTMX optional).
+  Pages: **/** six flow forms (weekly, email, teams, project detail, Jira write, flagship) ·
+  **/connections** self-service connect/disconnect for the 7 systems ·
+  **/admin** read-only audit events + pending approvals + seed policies.
+- Write actions require an explicit confirmation checkbox; unconfirmed writes never execute.
+- Identity is a cookie-based user-switcher stub (mark/anna/lucy) — replaced by real auth later.
+- Orchestrator additions: `project_detail` flow; `gaps` field reporting systems that could not
+  be consulted (honest partial answers).
+- **Milestone:** flagship flow runs in the browser; connections manageable in UI (83 tests).
 
 ### Later (post-MVP)
 Real connectors (one-by-one) → Teams bot (`@Secretary`) → full approval workflow (async

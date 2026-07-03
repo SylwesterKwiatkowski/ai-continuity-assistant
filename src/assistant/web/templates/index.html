@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Assistant</h1>
+
+{% include "partials/response.html" %}
+
+<div class="card">
+  <h2>1. Weekly tasks</h2>
+  <form method="post" action="/flows/weekly">
+    <label for="wt-target">Target user</label>
+    <input id="wt-target" type="text" name="target" value="Anna">
+    <button type="submit">Run</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>2. Search email</h2>
+  <form method="post" action="/flows/email">
+    <label for="em-target">Target user</label>
+    <input id="em-target" type="text" name="target" value="Anna">
+    <label for="em-client">Client</label>
+    <input id="em-client" type="text" name="client" value="ClientCo">
+    <label for="em-project">Project</label>
+    <input id="em-project" type="text" name="project" value="API Integration">
+    <button type="submit">Run</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>3. Search Teams</h2>
+  <form method="post" action="/flows/teams">
+    <label for="tm-target">Target user</label>
+    <input id="tm-target" type="text" name="target" value="Anna">
+    <label for="tm-client">Client</label>
+    <input id="tm-client" type="text" name="client" value="ClientCo">
+    <label for="tm-project">Project</label>
+    <input id="tm-project" type="text" name="project" value="API Integration">
+    <label for="tm-channels">Channels (comma-separated)</label>
+    <input id="tm-channels" type="text" name="channels" value="ClientCo Delivery">
+    <label for="tm-keywords">Keywords (comma-separated)</label>
+    <input id="tm-keywords" type="text" name="keywords" value="endpoint">
+    <button type="submit">Run</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>4. Project detail</h2>
+  <form method="post" action="/flows/project">
+    <label for="pd-project">Project</label>
+    <input id="pd-project" type="text" name="project" value="API Integration">
+    <label for="pd-client">Client</label>
+    <input id="pd-client" type="text" name="client" value="ClientCo">
+    <button type="submit">Run</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>5. Create Jira task (WRITE)</h2>
+  <form method="post" action="/flows/jira">
+    <label for="jira-project">Project</label>
+    <input id="jira-project" type="text" name="project" value="API Integration">
+    <label for="jira-summary">Summary</label>
+    <input id="jira-summary" type="text" name="summary" value="">
+    <label class="checkbox-label">
+      <input type="checkbox" name="confirm" value="on">
+      I confirm this action will be executed as me (the active user)
+    </label>
+    <button type="submit">Create</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>6. Flagship</h2>
+  <form method="post" action="/flows/flagship">
+    <label for="fl-target">Target user</label>
+    <input id="fl-target" type="text" name="target" value="Anna">
+    <label for="fl-client">Client</label>
+    <input id="fl-client" type="text" name="client" value="ClientCo">
+    <label for="fl-project">Project</label>
+    <input id="fl-project" type="text" name="project" value="API Integration">
+    <button type="submit">Run</button>
+  </form>
+</div>
+{% endblock %}

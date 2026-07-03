@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Admin</h1>
+
+<div class="card">
+  <h2>Audit events (newest first)</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Timestamp</th>
+          <th>Active user</th>
+          <th>Target user</th>
+          <th>Action type</th>
+          <th>System</th>
+          <th>Action</th>
+          <th>Result</th>
+          <th>Policy</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ev in events %}
+        <tr>
+          <td>{{ ev.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+          <td>{{ ev.active_user }}</td>
+          <td>{{ ev.target_user or '—' }}</td>
+          <td>{{ ev.action_type }}</td>
+          <td>{{ ev.system_accessed }}</td>
+          <td>{{ ev.action or '—' }}</td>
+          <td>{{ ev.result_status }}</td>
+          <td>{{ ev.permission_policy_used or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" style="color:#868e96; text-align:center;">No audit events yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Pending approvals</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Requester</th>
+          <th>Target</th>
+          <th>Systems</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ap in pending %}
+        <tr>
+          <td>{{ ap.id }}</td>
+          <td>{{ ap.requester }}</td>
+          <td>{{ ap.target_user or '—' }}</td>
+          <td>{{ ap.systems_requested | join(', ') }}</td>
+          <td>{{ ap.status }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" style="color:#868e96; text-align:center;">No pending approvals.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Seed policies — mailbox</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Owner</th>
+          <th>Requesters</th>
+          <th>Client / Project</th>
+          <th>Conditions</th>
+          <th>Expiry</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in mailbox_policies %}
+        <tr>
+          <td>{{ p.mailbox_owner }}</td>
+          <td>{{ p.allowed_requesters | join(', ') }}</td>
+          <td>{{ p.scope.client }} / {{ p.scope.project }}</td>
+          <td>{{ p.conditions | join(', ') }}</td>
+          <td>{{ p.expiry_date }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" style="color:#868e96; text-align:center;">None.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <h2 style="margin-top:1rem;">Seed policies — teams</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Target</th>
+          <th>Requesters</th>
+          <th>Clients</th>
+          <th>Projects</th>
+          <th>Conditions</th>
+          <th>Expiry</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in teams_policies %}
+        <tr>
+          <td>{{ p.target_user }}</td>
+          <td>{{ p.allowed_requesters | join(', ') }}</td>
+          <td>{{ p.allowed_clients | join(', ') }}</td>
+          <td>{{ p.allowed_projects | join(', ') }}</td>
+          <td>{{ p.conditions | join(', ') }}</td>
+          <td>{{ p.expiry_date }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" style="color:#868e96; text-align:center;">None.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

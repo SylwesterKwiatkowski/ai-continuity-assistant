@@ -87,6 +87,16 @@ class Orchestrator:
     def approvals(self) -> ApprovalRepository:
         return self._approvals
 
+    @property
+    def audit(self) -> AuditLog:
+        """Read-only access to the audit log (for admin dashboard)."""
+        return self._audit
+
+    @property
+    def connections_registry(self) -> ConnectionRegistry:
+        """Read-only access to the connection registry (for connections page)."""
+        return self._registry
+
     # typed connector accessors (port-typed; real connectors share the method names)
     def _gmail(self) -> GmailPort:
         return cast(GmailPort, self._connectors[System.GMAIL])
@@ -225,6 +235,7 @@ class Orchestrator:
         target = self._resolver.by_name(target_name)
         findings: list[Finding] = []
         audit_ids: list[str] = []
+        gaps: list[str] = []
 
         jira = self._authorize_read(
             active_user, target.id, System.JIRA, "get_assigned_issues", RequestedScope()
@@ -239,6 +250,8 @@ class Orchestrator:
                     reason=jira.decision.reason,
                 ).id
             )
+        else:
+            gaps.append(f"Could not consult {System.JIRA}: {jira.decision.reason}")
 
         sheets = self._authorize_read(
             active_user, target.id, System.SHEETS, "get_recurring_tasks", RequestedScope()
@@ -253,6 +266,8 @@ class Orchestrator:
                     reason=sheets.decision.reason,
                 ).id
             )
+        else:
+            gaps.append(f"Could not consult {System.SHEETS}: {sheets.decision.reason}")
 
         summary = self._summarizer.summarize(
             f"What is {target.name} working on this week?", findings
@@ -263,6 +278,7 @@ class Orchestrator:
             sources=summary.sources,
             access_reason=f"Delegated work-context read for {target.name} (audited).",
             audit_event_ids=audit_ids,
+            gaps=gaps,
         )
 
     def search_email(
@@ -364,6 +380,87 @@ class Orchestrator:
             actions_taken=[f"jira.create_jira_issue as {result.actor}: {result.resource_id}"],
             note=WRITE_NOTE,
             audit_event_ids=[audit_id],
+        )
+
+    def project_detail(
+        self, active_user: str, *, project: str, client: str
+    ) -> AssistantResponse:
+        """Read Jira project issues, HubSpot company, and own Teams messages for a project."""
+        findings: list[Finding] = []
+        audit_ids: list[str] = []
+        gaps: list[str] = []
+
+        # Jira: shared system — target_user=None means self-tier
+        jira_authz = self._authorize_read(
+            active_user, None, System.JIRA, "get_project_issues",
+            RequestedScope(project=project, client=client),
+        )
+        if jira_authz.ctx is not None:
+            tasks = self._jira().get_project_issues(jira_authz.ctx, project)
+            findings.extend(self._task_finding(t) for t in tasks)
+            audit_ids.append(
+                self._audit.record_read(
+                    active_user=active_user, target_user=None, system=System.JIRA,
+                    action="get_project_issues",
+                    resource_ids=[t.id for t in tasks],
+                    reason=jira_authz.decision.reason,
+                ).id
+            )
+        else:
+            gaps.append(f"Could not consult {System.JIRA}: {jira_authz.decision.reason}")
+
+        # HubSpot: shared system — self-tier
+        hs_authz = self._authorize_read(
+            active_user, None, System.HUBSPOT, "get_company",
+            RequestedScope(client=client),
+        )
+        if hs_authz.ctx is not None:
+            company = self._hubspot().get_company_by_name_or_domain(hs_authz.ctx, client)
+            if company:
+                name = company.get("name", client)
+                domain = company.get("domain", "")
+                cid = company.get("id", "")
+                findings.append(Finding(
+                    text=f"Client {name} (domain {domain}) in HubSpot",
+                    source="hubspot: company " + cid,
+                ))
+        else:
+            gaps.append(f"Could not consult {System.HUBSPOT}: {hs_authz.decision.reason}")
+
+        # Teams: self-tier (target_user=None) — may be refused due to missing connection/policy
+        teams_scope = RequestedScope(
+            client=client, project=project, date_range="last_90_days",
+        )
+        teams_authz = self._authorize_read(
+            active_user, None, System.TEAMS, TeamsAction.SEARCH_MESSAGES, teams_scope
+        )
+        if teams_authz.ctx is not None:
+            threads = self._teams().search_teams_messages(
+                teams_authz.ctx, keywords=[project]
+            )
+            findings.extend(self._teams_finding(t) for t in threads)
+            audit_ids.append(
+                self._audit.record_read(
+                    active_user=active_user, target_user=None, system=System.TEAMS,
+                    action=TeamsAction.SEARCH_MESSAGES,
+                    resource_ids=[t.id for t in threads],
+                    permission_policy_used=teams_authz.decision.permission_policy_used,
+                    reason=teams_authz.decision.reason,
+                ).id
+            )
+        else:
+            gaps.append(f"Could not consult {System.TEAMS}: {teams_authz.decision.reason}")
+
+        summary = self._summarizer.summarize(
+            f"Project detail: {project} for {client}", findings
+        )
+        return AssistantResponse(
+            allowed=True,
+            summary=summary.text,
+            sources=summary.sources,
+            access_reason="Shared project context (audited).",
+            audit_event_ids=audit_ids,
+            gaps=gaps,
         )
 
     def flagship(

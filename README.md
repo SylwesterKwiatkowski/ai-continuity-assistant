@@ -95,12 +95,17 @@ See `.env.example` for the authoritative list. Expected keys (MVP):
 ## Development commands
 
 ```bash
-pytest                     # run all tests (security suite is the acceptance gate)
-pytest tests/security      # permission / non-impersonation tests only
-ruff check src tests       # lint
-mypy src                   # type-check
-uvicorn assistant.api.app:app --reload   # run the API (once M5 lands)
+pytest                                   # all tests (83; acceptance gate included)
+pytest tests/test_security_acceptance.py # the 12 named Phase-6 security tests
+ruff check src tests                     # lint
+mypy src                                 # type-check (strict)
+uvicorn assistant.api.app:app --reload   # run the web app → http://127.0.0.1:8000
 ```
+
+The web app (MVP) runs on mock connectors with seeded data. Use the user switcher
+(mark / anna / lucy) to try the permission model: Mark may search Anna's ClientCo mail while
+she is out of office; Lucy is refused and an approval request is created. `/connections`
+manages your own app connections; `/admin` shows the audit trail.
 
 ## Status
 

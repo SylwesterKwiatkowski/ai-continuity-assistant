@@ -1,0 +1,113 @@
+<title>AI Continuity Assistant</title>
+<script src="https://unpkg.com/htmx.org@1.9.12"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background: #f8f9fa;
+    color: #212529;
+    line-height: 1.5;
+  }
+  nav {
+    background: #1a1a2e;
+    color: #fff;
+    padding: 0.75rem 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+  }
+  nav a { color: #cdd6f4; text-decoration: none; font-weight: 500; }
+  nav a:hover { color: #fff; }
+  nav .brand { font-weight: 700; font-size: 1.1rem; color: #fff; margin-right: 1rem; }
+  nav .user-switcher { margin-left: auto; display: flex; align-items: center; gap: 0.5rem; }
+  nav .user-switcher label { font-size: 0.875rem; color: #cdd6f4; }
+  nav .user-switcher select { padding: 0.2rem 0.4rem; border-radius: 4px; font-size: 0.875rem; }
+  nav .user-switcher button {
+    padding: 0.2rem 0.6rem; border-radius: 4px; border: none;
+    background: #4c6ef5; color: #fff; cursor: pointer; font-size: 0.875rem;
+  }
+  .container { max-width: 60rem; margin: 2rem auto; padding: 0 1rem; }
+  .card {
+    background: #fff; border: 1px solid #dee2e6; border-radius: 8px;
+    padding: 1.25rem 1.5rem; margin-bottom: 1.25rem;
+  }
+  .card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem; color: #343a40; }
+  label { display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.25rem; }
+  input[type="text"], select, textarea {
+    width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #ced4da;
+    border-radius: 4px; font-size: 0.875rem; margin-bottom: 0.5rem;
+  }
+  input[type="checkbox"] { margin-right: 0.4rem; }
+  .checkbox-label { display: flex; align-items: center; font-size: 0.875rem; margin-bottom: 0.5rem; }
+  button[type="submit"], .btn {
+    padding: 0.45rem 1rem; border-radius: 4px; border: none;
+    background: #4c6ef5; color: #fff; cursor: pointer; font-size: 0.875rem; font-weight: 500;
+  }
+  button[type="submit"]:hover, .btn:hover { background: #3b5bdb; }
+  .badge-allowed {
+    display: inline-block; background: #2f9e44; color: #fff;
+    padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.75rem; font-weight: 700;
+    text-transform: uppercase; margin-bottom: 0.5rem;
+  }
+  .badge-blocked {
+    display: inline-block; background: #c92a2a; color: #fff;
+    padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.75rem; font-weight: 700;
+    text-transform: uppercase; margin-bottom: 0.5rem;
+  }
+  .badge-gap {
+    display: inline-block; background: #e67700; color: #fff;
+    padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;
+    margin-right: 0.25rem;
+  }
+  pre { white-space: pre-wrap; word-break: break-word; font-size: 0.8rem;
+        background: #f1f3f5; padding: 0.75rem; border-radius: 4px; margin: 0.5rem 0; }
+  ul { padding-left: 1.25rem; font-size: 0.875rem; }
+  li { margin-bottom: 0.2rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.825rem; }
+  th { background: #f1f3f5; text-align: left; padding: 0.4rem 0.6rem;
+       border-bottom: 2px solid #dee2e6; }
+  td { padding: 0.4rem 0.6rem; border-bottom: 1px solid #dee2e6; vertical-align: top; }
+  .table-wrap { overflow-x: auto; }
+  .gap-list { margin: 0.5rem 0; }
+  h1 { font-size: 1.4rem; font-weight: 700; margin-bottom: 1rem; }
+  h3 { font-size: 1rem; font-weight: 600; margin: 1rem 0 0.5rem; }
+  .note { font-size: 0.8rem; color: #868e96; margin-top: 0.5rem; font-style: italic; }
+  .connected { color: #2f9e44; font-weight: 600; }
+  .disconnected { color: #868e96; }
+</style>
+
+<nav>
+  <span class="brand">AI Continuity Assistant</span>
+  <a href="/">Assistant</a>
+  <a href="/connections">Connections</a>
+  <a href="/admin">Admin</a>
+  <form class="user-switcher" method="get" action="/user-switch">
+    <label for="user-select">Active user:</label>
+    <select id="user-select" name="user" onchange="this.form.submit()">
+      <option value="mark" {% if active_user == 'mark' %}selected{% endif %}>mark</option>
+      <option value="anna" {% if active_user == 'anna' %}selected{% endif %}>anna</option>
+      <option value="lucy" {% if active_user == 'lucy' %}selected{% endif %}>lucy</option>
+    </select>
+    <noscript><button type="submit">Switch</button></noscript>
+  </form>
+</nav>
+<!-- JS user-switch shim: POST /user -->
+<script>
+  (function() {
+    var sel = document.getElementById('user-select');
+    if (sel) {
+      sel.form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var f = document.createElement('form');
+        f.method = 'post'; f.action = '/user';
+        var inp = document.createElement('input');
+        inp.type = 'hidden'; inp.name = 'user'; inp.value = sel.value;
+        f.appendChild(inp); document.body.appendChild(f); f.submit();
+      });
+    }
+  })();
+</script>
+
+<div class="container">
+  {% block content %}{% endblock %}
+</div>

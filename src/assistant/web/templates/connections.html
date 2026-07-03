@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Connections</h1>
+
+<p class="note" style="margin-bottom:1rem;">
+  Note: Reads of another person's Gmail/Teams use <strong>their</strong> connection and require a
+  policy; writes always use <strong>your</strong> connection.
+</p>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>System</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td>{{ row.system }}</td>
+          <td>
+            {% if row.connected %}
+              <span class="connected">Connected</span>
+            {% else %}
+              <span class="disconnected">Not connected</span>
+            {% endif %}
+          </td>
+          <td>
+            <form method="post" action="/connections/toggle">
+              <input type="hidden" name="system" value="{{ row.system }}">
+              <button type="submit" class="btn" style="font-size:0.8rem; padding:0.25rem 0.6rem;">
+                {% if row.connected %}Disconnect{% else %}Connect{% endif %}
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
