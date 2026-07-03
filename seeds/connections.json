@@ -1,0 +1,13 @@
+[
+  { "user_id": "anna", "system": "gmail",    "token_ref": "tok-anna-gmail" },
+  { "user_id": "anna", "system": "teams",    "token_ref": "tok-anna-teams" },
+  { "user_id": "anna", "system": "calendar", "token_ref": "tok-anna-calendar" },
+
+  { "user_id": "mark", "system": "gmail",    "token_ref": "tok-mark-gmail" },
+  { "user_id": "mark", "system": "teams",    "token_ref": "tok-mark-teams" },
+  { "user_id": "mark", "system": "calendar", "token_ref": "tok-mark-calendar" },
+  { "user_id": "mark", "system": "jira",     "token_ref": "tok-mark-jira" },
+  { "user_id": "mark", "system": "hubspot",  "token_ref": "tok-mark-hubspot" },
+  { "user_id": "mark", "system": "sheets",   "token_ref": "tok-mark-sheets" },
+  { "user_id": "mark", "system": "drive",    "token_ref": "tok-mark-drive" }
+]

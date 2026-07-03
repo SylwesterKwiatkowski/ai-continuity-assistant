@@ -1,0 +1,34 @@
+{
+  "mailbox": [
+    {
+      "mailbox_owner": "anna",
+      "allowed_requesters": ["mark"],
+      "scope": {
+        "type": "project_or_client",
+        "client": "ClientCo",
+        "domain": "clientco.com",
+        "project": "API Integration"
+      },
+      "allowed_actions": ["search_metadata", "read_thread", "summarize", "retrieve_attachment"],
+      "conditions": ["only_when_out_of_office"],
+      "expiry_date": "2026-07-20",
+      "audit_required": true
+    }
+  ],
+  "teams": [
+    {
+      "target_user": "anna",
+      "allowed_requesters": ["mark"],
+      "allowed_channels": ["ClientCo Delivery", "API Integration"],
+      "allowed_projects": ["API Integration"],
+      "allowed_clients": ["ClientCo"],
+      "allowed_keywords": ["API", "OAuth", "webhook", "sandbox", "endpoint"],
+      "allowed_participants": ["anna"],
+      "date_range": "last_90_days",
+      "allowed_actions": ["search_messages", "read_thread", "summarize", "retrieve_file"],
+      "conditions": ["only_when_out_of_office"],
+      "expiry_date": "2026-07-20",
+      "audit_required": true
+    }
+  ]
+}
