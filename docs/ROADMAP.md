@@ -10,8 +10,8 @@ web app, 83 tests). See `IMPLEMENTATION_PLAN.md` for what the MVP contains.
 
 The MVP's two declared weaknesses, fixed before any real data is wired:
 
-- [ ] **CI + branch protection** (GitHub Actions: ruff + mypy + pytest on all branches;
-      `main` requires green) — first PR of the release.
+- [x] **CI + branch protection** (GitHub Actions: ruff + mypy + pytest on all branches;
+      `main` requires the `checks` job) — ✅ done 2026-07-03.
 - [ ] **Real authentication**: Google OAuth login replaces the cookie user-switcher;
       session → `Person` mapping; the web user-switcher survives only in a dev/demo mode
       behind a flag.

@@ -74,8 +74,12 @@ Any deviation = stop the release and file the regression.
 - Every real connector must pass the same guard tests as its mock (shared test parametrized
   over implementations), proving no real connector weakens the permission boundary.
 
-## CI (to be set up — first task on the roadmap)
+## CI
 
-GitHub Actions workflow running `ruff + mypy + pytest` on every push/PR to `main`, `mvp`,
-`post-mvp`; branch protection on `main` requiring the check. Until it exists, the local
-commands above are the only gate — run them.
+GitHub Actions (`.github/workflows/ci.yml`) runs `ruff + mypy + pytest` (Python 3.12) on
+every push and PR to `main`, `mvp`, and `post-mvp`. The job is named **`checks`**.
+
+`main` is protected: the `checks` status must pass before anything lands there (repo admins
+can bypass in an emergency — don't make it a habit). Practical consequence: merge `post-mvp`
+into `main` via PR or fast-forward of an already-green SHA; cherry-picks create new SHAs
+whose checks haven't run yet.
