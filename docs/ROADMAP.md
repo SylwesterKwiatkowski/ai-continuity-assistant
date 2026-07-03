@@ -20,6 +20,9 @@ The MVP's two declared weaknesses, fixed before any real data is wired:
       for audit events, policies, approvals, connections. `DATABASE_URL` becomes real.
 - [ ] **Encrypted token store** implementation behind the existing `TokenStore` protocol
       (`TOKEN_STORE_KEY`).
+- [ ] **Admin role gate**: `/admin` (audit log, approvals, policies) restricted to an admin
+      role — the audit log is itself sensitive data (who searched whose mailbox). Currently
+      any user can view it. *(From external review, 2026-07-03.)*
 
 **Definition of done:** a restart loses nothing; nobody can act without logging in;
 acceptance suite green.
@@ -66,6 +69,9 @@ access without an admin editing JSON.
       the parsed plan is still authorized step-by-step by the Permission Engine — the LLM
       never gains direct data access (spec §10.4 rules).
 - [ ] Summary quality guardrails: cite-or-omit, uncertainty statements, no personal data.
+- [ ] **LLM safety test tier**: prompt-injection resistance (retrieved email/Teams content is
+      attacker-controllable input to the summarizer), refusal behavior, citation fidelity,
+      and PII/raw-body leakage checks. *(From external review, 2026-07-03.)*
 
 ## v1.0 — Pilot-ready
 

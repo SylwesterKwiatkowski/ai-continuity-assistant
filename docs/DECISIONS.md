@@ -114,6 +114,13 @@ Each entry: **decision** · **why** · **tradeoffs / alternatives** · **status*
 - **Tradeoffs:** treats task/calendar metadata as non-secret. Revisit if any of these systems carry
   sensitive free-text in practice; a system can be moved into `SENSITIVE_SYSTEMS` with no other
   change.
+- **Why the risk is bounded (added after external review, 2026-07-03):** shared-system reads run
+  with the **active_user's own credential** (D16). When real connectors land, Mark's Jira/HubSpot/
+  Drive queries execute with Mark's token, so he can only ever see what those tools' **native
+  permissions** already grant him — the assistant does not widen access, it only aggregates it.
+  The exposure is therefore "what the requester could already see," plus our audit trail on top.
+  This does not remove the need to revisit per deployment (mocks can't model native ACLs), but it
+  is why these systems don't need `MailboxAccessPolicy`-style gating to be safe by default.
 - **Status:** Reasonable default (implemented in `permissions/engine.py`); flag for review.
 
 ### D16 — Read credential depends on system type
