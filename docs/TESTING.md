@@ -79,7 +79,17 @@ Any deviation = stop the release and file the regression.
 GitHub Actions (`.github/workflows/ci.yml`) runs `ruff + mypy + pytest` (Python 3.12) on
 every push and PR to `main`, `mvp`, and `post-mvp`. The job is named **`checks`**.
 
-`main` is protected: the `checks` status must pass before anything lands there (repo admins
-can bypass in an emergency — don't make it a habit). Practical consequence: merge `post-mvp`
-into `main` via PR or fast-forward of an already-green SHA; cherry-picks create new SHAs
-whose checks haven't run yet.
+**Branch protection on `main`:** not currently enforced server-side — GitHub requires the
+Pro plan for branch protection on private repositories (the API returns 403 on Free). Until
+the repo is upgraded (or made public), protection of `main` is **by convention**: never
+commit to `main` directly; merge from `post-mvp` only after its CI run is green. If the plan
+is upgraded, enable it with:
+
+```bash
+gh api -X PUT repos/SylwesterKwiatkowski/ai-continuity-assistant/branches/main/protection \
+  --input - <<'EOF'
+{"required_status_checks":{"strict":false,"contexts":["checks"]},
+ "enforce_admins":false,"required_pull_request_reviews":null,"restrictions":null,
+ "allow_force_pushes":false,"allow_deletions":false}
+EOF
+```
