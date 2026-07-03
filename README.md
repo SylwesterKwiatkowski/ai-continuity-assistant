@@ -109,6 +109,19 @@ manages your own app connections; `/admin` shows the audit trail.
 
 ## Status
 
-Early scaffolding. See [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) for the
-phased roadmap and current MVP scope, and [`docs/DECISIONS.md`](docs/DECISIONS.md) for
-architectural decisions and open questions.
+**MVP complete** (`v0.1.0-mvp`): security core, 7 mock connectors, orchestrator flows, simple
+web app, 83 tests. Development continues on the `post-mvp` branch.
+
+## For developers
+
+Start with [`CONTRIBUTING.md`](CONTRIBUTING.md) — onboarding, branch model, the
+non-negotiable security rules, and the release checklist. Then:
+
+| Doc | What it answers |
+|---|---|
+| [`docs/SECURITY_MODEL.md`](docs/SECURITY_MODEL.md) | The contract all code must obey |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Components, data flow, boundaries |
+| [`docs/TESTING.md`](docs/TESTING.md) | Automated gates + manual smoke procedure |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | Release plan v0.2 → v1.0 with rationale |
+| [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) | What the MVP contains (M0–M7) |
+| [`docs/DECISIONS.md`](docs/DECISIONS.md) | Why things are the way they are (D1–D16) |

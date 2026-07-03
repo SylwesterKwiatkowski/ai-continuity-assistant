@@ -86,9 +86,9 @@ Living document. Updated each implementation loop.
 - **Milestone:** flagship flow runs in the browser; connections manageable in UI (83 tests).
 
 ### Later (post-MVP)
-Real connectors (one-by-one) → Teams bot (`@Secretary`) → full approval workflow (async
-notify/callback) → richer admin dashboard (revoke/alerts) → proactive/handoff packs
-(consent-based continuity briefs, digests, alerts).
+Superseded by the dedicated release plan: see **[`ROADMAP.md`](ROADMAP.md)**
+(v0.2 auth+persistence → v0.3 Google connectors → v0.4 approvals+transparency →
+v0.5 Microsoft+Teams bot → v0.6 real LLM → v1.0 pilot-ready).
 
 ## Domain models (from spec §12/§15)
 
