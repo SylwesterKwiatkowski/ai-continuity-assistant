@@ -37,9 +37,14 @@ data explicitly shared/project-scoped → **shared**; otherwise → **delegated*
 Because connections are **per-user and self-service**, the "never impersonate" rule is enforced
 by *which credential is used*, not merely by convention:
 
-- **Reads** of a target's data use the **target's** connection — and only if the Permission Engine
-  authorized that exact `(system, action, scope)`. If the target has not connected that app, the
-  read is simply impossible → honest refusal.
+- **Delegated reads of private stores (Gmail, Teams)** use the **target's** connection — and only
+  if the Permission Engine authorized that exact `(system, action, scope)`. If the target has not
+  connected that app, the read is simply impossible → honest refusal.
+- **Reads of shared systems (Jira, Calendar, HubSpot, Sheets, Drive)** use the **active_user's
+  own** connection, filtered by the target (e.g. Mark queries Jira for issues assigned to Anna
+  with Mark's token). Consequence: with real connectors, the requester can only ever see what the
+  tool's **native permissions** already grant them — the assistant aggregates existing access, it
+  never widens it (see DECISIONS D15/D16).
 - **Writes** always use the **active_user's own** connection. The target's credential is *never*
   used for a write. A write request whose `actor != active_user` is a hard invariant violation
   (raise + audit), not a recoverable condition.
