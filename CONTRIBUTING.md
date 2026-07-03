@@ -125,4 +125,6 @@ docs/               the five living documents + ROADMAP + TESTING
 - Approval requests are persisted in-memory but approvers are not notified yet.
 - The "shared" access tier is designed (SECURITY_MODEL) but the engine currently resolves
   only self/delegated; project-membership modeling is pending.
-- CI is not set up yet — run the checks locally until it is.
+
+CI runs on GitHub Actions for all three branches, and `main` requires the `checks` job to
+pass — see [`docs/TESTING.md`](docs/TESTING.md).
