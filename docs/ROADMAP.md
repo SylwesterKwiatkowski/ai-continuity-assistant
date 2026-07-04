@@ -4,7 +4,8 @@ Post-MVP release plan. Work happens on `post-mvp`; each release merges to `main`
 after the release checklist in [`../CONTRIBUTING.md`](../CONTRIBUTING.md) passes.
 
 Status: **v0.1.0-mvp shipped** (M0–M7: security core, mock connectors, orchestrator flows,
-web app, 83 tests). See `IMPLEMENTATION_PLAN.md` for what the MVP contains.
+web app); **v0.2 in progress** — trust infrastructure landed, OAuth provider remaining.
+See `IMPLEMENTATION_PLAN.md` for MVP contents; current test count comes from CI, not docs.
 
 ## v0.2.0 — Trustworthy identity & memory  *(do this first)*
 
