@@ -10,7 +10,6 @@ all data goes through Orchestrator methods only.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -125,7 +124,9 @@ def login_post(
     sm = _get_session_manager(request)
     token = sm.issue(person.id)
     redirect = RedirectResponse("/", status_code=303)
-    redirect.set_cookie("session", token, httponly=True, samesite="lax")
+    redirect.set_cookie(
+        "session", token, httponly=True, samesite="lax", secure=settings.is_prod
+    )
     return redirect
 
 
@@ -321,16 +322,10 @@ def admin_page(request: Request) -> _TemplateResponse | RedirectResponse | HTMLR
     # Pending approvals
     pending = orch.approvals.pending()
 
-    # Seed policies summary — read directly from seeds/policies.json
-    from assistant.config import SEEDS_DIR  # noqa: PLC0415
-
-    policies_path = SEEDS_DIR / "policies.json"
-    policies_data: dict[str, Any] = {}
-    if policies_path.exists():
-        policies_data = json.loads(policies_path.read_text(encoding="utf-8"))
-
-    mailbox_policies = policies_data.get("mailbox", [])
-    teams_policies = policies_data.get("teams", [])
+    # Policies — read through the persisted store (source of truth), not seed JSON.
+    policy_store = request.app.state.services.policy_store
+    mailbox_policies = policy_store.load_mailbox()
+    teams_policies = policy_store.load_teams()
 
     return _render(
         request,

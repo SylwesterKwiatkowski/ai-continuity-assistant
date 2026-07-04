@@ -4,7 +4,7 @@ connections write through to SQLite."""
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pytest
@@ -116,3 +116,52 @@ def test_connections_disconnect_persists_across_rebuild(tmp_path: Path) -> None:
     services2 = _make_services(tmp_path)
     conn = services2.orchestrator.connections_registry.get("mark", System.GMAIL)
     assert conn is None
+
+
+# --- supervisor findings: audit append-only + admin reads persisted policies ---
+
+def test_audit_append_rejects_duplicate_id(tmp_path: Path) -> None:
+    import sqlite3
+
+    from assistant.audit.models import AuditEvent
+    from assistant.domain.enums import ActionType, System
+    from assistant.storage import database_from_url
+    from assistant.storage.repositories import SqliteAuditRepository
+
+    db = database_from_url(f"sqlite:///{tmp_path}/audit.db")
+    repo = SqliteAuditRepository(db)
+    event = AuditEvent(
+        id="fixed-id",
+        timestamp=datetime(2026, 7, 4, tzinfo=UTC),
+        active_user="mark",
+        action_type=ActionType.READ,
+        system_accessed=System.GMAIL,
+    )
+    repo.append(event)
+    with pytest.raises(sqlite3.IntegrityError):
+        repo.append(event)  # same id must never overwrite history
+    assert len(repo.all()) == 1
+
+
+def test_admin_page_reads_policies_from_store(tmp_path: Path) -> None:
+    from fastapi.testclient import TestClient
+
+    from assistant.api.app import create_app
+    from assistant.config import Settings
+    from assistant.permissions.policies import MailboxAccessPolicy, MailboxScope
+
+    app = create_app(Settings(database_url=f"sqlite:///{tmp_path}/web.db"))
+    services = app.state.services
+    # Add a policy that exists ONLY in the persisted store, not in seed JSON.
+    extra = MailboxAccessPolicy(
+        mailbox_owner="zzz-store-only",
+        allowed_requesters=["lucy"],
+        scope=MailboxScope(client="StoreCo", project="StoreProj"),
+    )
+    services.policy_store.save_mailbox([*services.policy_store.load_mailbox(), extra])
+
+    client = TestClient(app)
+    client.post("/login", data={"user": "lucy"}, follow_redirects=False)
+    page = client.get("/admin")
+    assert page.status_code == 200
+    assert "zzz-store-only" in page.text  # proves read-through to SQLite, not seeds

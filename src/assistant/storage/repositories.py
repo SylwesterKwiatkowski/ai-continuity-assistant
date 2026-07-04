@@ -20,8 +20,9 @@ class SqliteAuditRepository:
         self._db = db
 
     def append(self, event: AuditEvent) -> None:
+        # Strictly append-only: a reused id must fail loudly, never overwrite history.
         self._db.execute(
-            "INSERT OR REPLACE INTO audit_events (id, ts, data) VALUES (?, ?, ?)",
+            "INSERT INTO audit_events (id, ts, data) VALUES (?, ?, ?)",
             (event.id, event.timestamp.isoformat(), event.model_dump_json()),
         )
 

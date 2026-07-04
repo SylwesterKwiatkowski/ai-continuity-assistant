@@ -10,7 +10,12 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Dev-only defaults; production boot is rejected while any of these are in use.
+DEV_SESSION_SECRET = "dev-only-session-secret"
+DEV_TOKEN_STORE_KEY = "dev-only-not-secret"
 
 # Repo layout: src/assistant/config.py -> parents[2] is the project root.
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -33,12 +38,12 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./assistant.sqlite"
 
     # Per-user token store (encryption key). Stub/no-op in MVP; must be set in prod.
-    token_store_key: str = "dev-only-not-secret"
+    token_store_key: str = DEV_TOKEN_STORE_KEY
 
     # Auth mode: "dev" enables the demo user picker; "oauth" shows OAuth placeholder.
     # SESSION_SECRET must be a real secret in prod.
     auth_mode: Literal["dev", "oauth"] = "dev"
-    session_secret: str = "dev-only-session-secret"
+    session_secret: str = DEV_SESSION_SECRET
     session_ttl_hours: int = 8
 
     # Summarizer (LLM). Unused while the deterministic stub is active.
@@ -48,6 +53,22 @@ class Settings(BaseSettings):
     @property
     def is_prod(self) -> bool:
         return self.app_env == "prod"
+
+    @model_validator(mode="after")
+    def _reject_unsafe_production_config(self) -> Settings:
+        """Refuse to boot in prod with dev auth or default secrets (fail closed)."""
+        if self.app_env != "prod":
+            return self
+        problems: list[str] = []
+        if self.auth_mode == "dev":
+            problems.append("AUTH_MODE must not be 'dev' in prod")
+        if self.session_secret == DEV_SESSION_SECRET:
+            problems.append("SESSION_SECRET is still the dev default")
+        if self.token_store_key == DEV_TOKEN_STORE_KEY:
+            problems.append("TOKEN_STORE_KEY is still the dev default")
+        if problems:
+            raise ValueError("unsafe production configuration: " + "; ".join(problems))
+        return self
 
 
 @lru_cache

@@ -43,6 +43,7 @@ class AppServices:
     session_manager: SessionManager
     resolver: IdentityResolver
     settings: Settings
+    policy_store: SqlitePolicyStore
 
 
 def build_app_services(
@@ -99,4 +100,5 @@ def build_app_services(
         session_manager=session_manager,
         resolver=resolver,
         settings=settings,
+        policy_store=policy_store,
     )

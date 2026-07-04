@@ -98,7 +98,7 @@ See `.env.example` for the authoritative list. Expected keys (MVP):
 ## Development commands
 
 ```bash
-pytest                                   # all tests (83; acceptance gate included)
+pytest                                   # full suite (acceptance gate included)
 pytest tests/test_security_acceptance.py # the 12 named Phase-6 security tests
 ruff check src tests                     # lint
 mypy src                                 # type-check (strict)
@@ -114,7 +114,8 @@ State persists in SQLite across restarts.
 ## Status
 
 **MVP complete** (`v0.1.0-mvp`): security core, 7 mock connectors, orchestrator flows, simple
-web app, 83 tests. Development continues on the `post-mvp` branch.
+web app. v0.2 trust infrastructure (session auth, persistence, encrypted tokens) has landed
+on `post-mvp`/`main`. Current test count: run `pytest -q` or see the CI badge/runs.
 
 ## For developers
 

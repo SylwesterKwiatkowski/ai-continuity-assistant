@@ -5,8 +5,10 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from assistant.api.app import create_app
 from assistant.bootstrap import AppServices, build_app_services
@@ -165,3 +167,27 @@ def test_dev_login_disabled_get_login_shows_no_form(tmp_path: Path) -> None:
     resp = client.get("/login")
     assert resp.status_code == 200
     assert "not configured" in resp.text
+
+
+# --- supervisor findings: prod must fail closed on dev auth / default secrets ---
+
+def test_prod_rejects_dev_auth_mode() -> None:
+    with pytest.raises(ValidationError, match="AUTH_MODE"):
+        Settings(app_env="prod", session_secret="real", token_store_key="real")
+
+
+def test_prod_rejects_default_secrets() -> None:
+    with pytest.raises(ValidationError, match="SESSION_SECRET"):
+        Settings(app_env="prod", auth_mode="oauth", token_store_key="real")
+    with pytest.raises(ValidationError, match="TOKEN_STORE_KEY"):
+        Settings(app_env="prod", auth_mode="oauth", session_secret="real")
+
+
+def test_prod_boots_with_safe_config() -> None:
+    settings = Settings(
+        app_env="prod",
+        auth_mode="oauth",
+        session_secret="a-real-secret",
+        token_store_key="another-real-secret",
+    )
+    assert settings.is_prod
