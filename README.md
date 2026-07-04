@@ -106,10 +106,44 @@ uvicorn assistant.api.app:app --reload   # run the web app → http://127.0.0.1:
 ```
 
 The web app runs on mock connectors with seeded data. Sign in at `/login` (dev mode: pick
-mark / anna / lucy) to try the permission model: Mark may search Anna's ClientCo mail while
-she is out of office; Lucy is refused and an approval request is created. `/connections`
-manages your own app connections; `/admin` (admin role — Lucy) shows the audit trail.
-State persists in SQLite across restarts.
+mark / anna / lucy) to try the permission model. State persists in SQLite across restarts.
+
+## Demo scenario (how "Mark" works without any real accounts)
+
+Nobody connects real apps in dev mode — the demo universe is **seeded**, and the mock
+connectors return fixtures. The security machinery is real end-to-end (sessions, permission
+engine, policy matching, credential resolution, audit); only the final data fetch is canned.
+
+**The cast** (`seeds/`):
+
+| Persona | Role in the demo |
+|---|---|
+| **anna** | Out of office 2026-07-01→10; owns the ClientCo mailbox data; connected: Gmail, Teams, Calendar |
+| **mark** | Anna's backup owner for **ClientCo / API Integration**; connected to all 7 systems |
+| **lucy** | Admin (can view `/admin`); has **no** delegated access — her searches get blocked |
+
+**The data** (`src/assistant/connectors/mock/data.py`): Anna's mailbox holds the
+"API preparation details" thread from `dev@clientco.com` with two attachments; a Teams
+thread in *ClientCo Delivery*; Jira issues CRM-241 (overdue) and API-12; a recurring
+Sheets task; and her Calendar OOO window.
+
+**The delegation** (`seeds/policies.json`): Mark may read Anna's Gmail/Teams, scoped to
+ClientCo / API Integration, **only while she is out of office**, expiring 2026-07-20.
+
+**Things to try:** sign in as each persona; disconnect Anna's Gmail on `/connections`
+(Mark's search then honestly refuses); edit `policies.json` to remove Mark or expire the
+policy and watch the engine deny; move Anna's OOO window into the past in
+`connectors/mock/calendar.py`.
+
+> ⚠️ Connections and policies are copied into SQLite **on first boot only** — after editing
+> those seed files, delete the database (`rm assistant.sqlite`) so it re-seeds.
+> `people.json` is read fresh on every start.
+
+Real data arrives in v0.3 when mock connectors are swapped for real ones and
+`/connections` becomes a genuine OAuth consent flow.
+
+`/connections` manages your own app connections; `/admin` (admin role — Lucy) shows the
+audit trail, pending approvals, and policies.
 
 ## Status
 
