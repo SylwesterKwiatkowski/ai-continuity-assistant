@@ -7,7 +7,8 @@
     "jira_id": "jira-anna",
     "hubspot_id": "hs-anna",
     "manager_id": "lucy",
-    "backup_owners": ["mark"]
+    "backup_owners": ["mark"],
+    "roles": []
   },
   {
     "id": "mark",
@@ -17,7 +18,8 @@
     "jira_id": "jira-mark",
     "hubspot_id": "hs-mark",
     "manager_id": "lucy",
-    "backup_owners": []
+    "backup_owners": [],
+    "roles": []
   },
   {
     "id": "lucy",
@@ -27,6 +29,7 @@
     "jira_id": "jira-lucy",
     "hubspot_id": "hs-lucy",
     "manager_id": null,
-    "backup_owners": []
+    "backup_owners": [],
+    "roles": ["admin"]
   }
 ]

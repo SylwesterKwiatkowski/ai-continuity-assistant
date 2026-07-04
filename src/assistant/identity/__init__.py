@@ -13,6 +13,7 @@ from assistant.identity.errors import (
     PersonNotFound,
 )
 from assistant.identity.resolver import IdentityResolver
+from assistant.identity.sessions import SessionManager
 
 __all__ = [
     "AmbiguousPerson",
@@ -23,5 +24,6 @@ __all__ = [
     "IdentityResolver",
     "InMemoryTokenStore",
     "PersonNotFound",
+    "SessionManager",
     "TokenStore",
 ]

@@ -87,8 +87,11 @@ See `.env.example` for the authoritative list. Expected keys (MVP):
 | Variable                | Purpose                                             |
 |-------------------------|-----------------------------------------------------|
 | `APP_ENV`               | `local` / `dev` / `prod`                            |
-| `DATABASE_URL`          | SQLite path (MVP), Postgres URL later               |
-| `TOKEN_STORE_KEY`       | encryption key for the per-user token store         |
+| `DATABASE_URL`          | SQLite URL (`sqlite:///./assistant.sqlite`)         |
+| `TOKEN_STORE_KEY`       | key for the encrypted (Fernet) per-user token store |
+| `AUTH_MODE`             | `dev` (demo user picker) / `oauth` (provider TBD)   |
+| `SESSION_SECRET`        | HMAC key for signed session tokens — secret in prod |
+| `SESSION_TTL_HOURS`     | session lifetime (default 8)                        |
 | `LLM_API_KEY`           | summarizer key (unused while stub is active)        |
 | `LLM_MODEL`             | model id (e.g. `claude-opus-4-8`) when wired        |
 
@@ -102,10 +105,11 @@ mypy src                                 # type-check (strict)
 uvicorn assistant.api.app:app --reload   # run the web app → http://127.0.0.1:8000
 ```
 
-The web app (MVP) runs on mock connectors with seeded data. Use the user switcher
-(mark / anna / lucy) to try the permission model: Mark may search Anna's ClientCo mail while
+The web app runs on mock connectors with seeded data. Sign in at `/login` (dev mode: pick
+mark / anna / lucy) to try the permission model: Mark may search Anna's ClientCo mail while
 she is out of office; Lucy is refused and an approval request is created. `/connections`
-manages your own app connections; `/admin` shows the audit trail.
+manages your own app connections; `/admin` (admin role — Lucy) shows the audit trail.
+State persists in SQLite across restarts.
 
 ## Status
 

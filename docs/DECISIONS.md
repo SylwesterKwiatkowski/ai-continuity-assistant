@@ -57,7 +57,7 @@ Each entry: **decision** · **why** · **tradeoffs / alternatives** · **status*
 
 ### D7 — Storage: SQLite behind repository interfaces (MVP)
 - **Why:** simplest thing that works; swappable to Postgres later without touching domain logic.
-- **Status:** Reasonable default (documented; not explicitly ratified).
+- **Status:** Fulfilled in v0.2 — see D18.
 
 ### D8 — Identity mapping from a seed file (MVP)
 - **Why:** `seeds/people.json` maps each Person's Google/Teams/Jira/HubSpot IDs + `backup_owners`;
@@ -143,3 +143,25 @@ Each entry: **decision** · **why** · **tradeoffs / alternatives** · **status*
 - Whether the graph overlay ships enabled or disabled-by-default in MVP.
 - Storage engine ratification (SQLite vs Postgres) once data volume is understood.
 - Web app tech (Jinja2+HTMX vs React SPA) — default set in D14, open to change.
+
+### D17 — v0.2 authentication: signed sessions + pluggable provider (OAuth pending)
+- **What:** identity now comes from HMAC-SHA256 signed, server-issued session tokens
+  (`identity/sessions.py`; constant-time verify, TTL, tamper-proof). Login providers are
+  pluggable behind `/login`: MVP ships a **dev provider** (user picker, only when
+  `AUTH_MODE=dev`, with a visible warning banner); `AUTH_MODE=oauth` disables it.
+- **Why not full Google OAuth yet:** requires real Google Cloud client credentials which do
+  not exist yet; the provider slots into the same `/login` flow without re-architecture.
+- **Consequence:** the "identity from arbitrary cookie" weakness is gone — a forged or
+  expired session is treated as unauthenticated. `/admin` additionally requires the `admin`
+  role on `Person.roles`.
+- **Status:** Implemented (v0.2); Google OAuth provider is the follow-up.
+
+### D18 — v0.2 storage: stdlib sqlite3 + JSON columns, no ORM
+- **What:** `storage/` provides a thread-safe `Database` (stdlib `sqlite3`) with tables for
+  audit_events, approvals, policies, connections, tokens; repositories implement the
+  existing protocols (`AuditRepository`, `ApprovalRepository`, connection/policy stores);
+  records stored as JSON via pydantic. Tokens are encrypted at rest
+  (`EncryptedTokenStore`, Fernet, key derived from `TOKEN_STORE_KEY`).
+- **Why:** fulfills D7 with the smallest dependency surface (only `cryptography` added);
+  swapping to Postgres later means reimplementing the small repository classes, nothing else.
+- **Status:** Implemented (v0.2). Audit/approval/connection state survives restarts.

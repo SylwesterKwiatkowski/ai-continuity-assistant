@@ -26,6 +26,7 @@ class Person(BaseModel):
     hubspot_id: str | None = None
     manager_id: str | None = None
     backup_owners: list[str] = Field(default_factory=list)
+    roles: list[str] = Field(default_factory=list)
 
     def handle_for(self, system: System) -> str | None:
         """Return this person's identifier in `system`, or None if unmapped.

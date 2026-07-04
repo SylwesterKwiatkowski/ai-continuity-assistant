@@ -13,16 +13,19 @@ The MVP's two declared weaknesses, fixed before any real data is wired:
 - [x] **CI** (GitHub Actions: ruff + mypy + pytest on all three branches) — ✅ done 2026-07-03.
       Branch protection on `main` needs GitHub Pro on private repos (API 403 on Free) —
       protection is by convention for now; TESTING.md has the enable command post-upgrade.
-- [ ] **Real authentication**: Google OAuth login replaces the cookie user-switcher;
-      session → `Person` mapping; the web user-switcher survives only in a dev/demo mode
-      behind a flag.
-- [ ] **Persistence**: SQLite (via the existing repository interfaces — see DECISIONS D7)
-      for audit events, policies, approvals, connections. `DATABASE_URL` becomes real.
-- [ ] **Encrypted token store** implementation behind the existing `TokenStore` protocol
-      (`TOKEN_STORE_KEY`).
-- [ ] **Admin role gate**: `/admin` (audit log, approvals, policies) restricted to an admin
-      role — the audit log is itself sensitive data (who searched whose mailbox). Currently
-      any user can view it. *(From external review, 2026-07-03.)*
+- [x] **Session authentication** (2026-07-04): HMAC-signed, server-issued session tokens
+      replace the arbitrary cookie; identity comes only from a verified session. The user
+      switcher survives solely as the dev login provider (`AUTH_MODE=dev`, warning banner);
+      `AUTH_MODE=oauth` disables it. See DECISIONS D17.
+- [ ] **Google OAuth provider** for `/login` — needs real Google Cloud client credentials;
+      plugs into the same session flow (remainder of "real authentication").
+- [x] **Persistence** (2026-07-04): SQLite via the repository interfaces for audit events,
+      policies, approvals, connections; state survives restarts. `DATABASE_URL` is real.
+      See DECISIONS D18.
+- [x] **Encrypted token store** (2026-07-04): Fernet encryption at rest behind the existing
+      `TokenStore` protocol, key derived from `TOKEN_STORE_KEY`.
+- [x] **Admin role gate** (2026-07-04): `/admin` requires the `admin` role (`Person.roles`);
+      403 otherwise. *(From external review, 2026-07-03.)*
 
 **Definition of done:** a restart loses nothing; nobody can act without logging in;
 acceptance suite green.
