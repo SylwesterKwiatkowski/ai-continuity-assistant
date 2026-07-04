@@ -1,8 +1,6 @@
 """FastAPI application factory.
 
-M0 provides only a health check and app wiring. Query/action/connections/admin routes
-and the web app (Jinja2 + HTMX) arrive in later milestones — all as thin clients over
-the Permission Engine, never bypassing it.
+All layer wiring lives in bootstrap.py; this module is intentionally thin.
 """
 
 from __future__ import annotations
@@ -10,8 +8,8 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from assistant import __version__
+from assistant.bootstrap import build_app_services
 from assistant.config import Settings, get_settings
-from assistant.orchestrator.service import build_default_orchestrator
 from assistant.web.routes import router as web_router
 
 
@@ -24,7 +22,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         version=__version__,
     )
     app.state.settings = settings
-    app.state.orchestrator = build_default_orchestrator()
+    services = build_app_services(settings)
+    app.state.services = services
+    app.state.orchestrator = services.orchestrator  # keep alias for existing tests
 
     app.include_router(web_router)
 

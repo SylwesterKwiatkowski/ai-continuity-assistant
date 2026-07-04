@@ -38,6 +38,16 @@ class Connection(BaseModel):
         return self.status == "connected"
 
 
+class ConnectionStore(Protocol):
+    """Persistence abstraction for connection records."""
+
+    def upsert(self, conn: Connection) -> None: ...
+
+    def delete(self, user_id: str, system: System) -> None: ...
+
+    def all(self) -> list[Connection]: ...
+
+
 @runtime_checkable
 class TokenStore(Protocol):
     """Abstraction over encrypted secret storage. Stubbed in MVP (DECISIONS.md D6)."""
@@ -72,17 +82,23 @@ class ConnectionRegistry:
         self,
         connections: Iterable[Connection] = (),
         token_store: TokenStore | None = None,
+        store: ConnectionStore | None = None,
     ) -> None:
-        store = token_store or InMemoryTokenStore()
-        all_connections = list(connections)
+        ts = token_store or InMemoryTokenStore()
+        # If a persistent store is given, initialise from it (ignores `connections` arg).
+        if store is not None:
+            all_connections = store.all()
+        else:
+            all_connections = list(connections)
+        self._conn_store: ConnectionStore | None = store
         self._by_key: dict[tuple[str, System], Connection] = {
             (c.user_id, c.system): c for c in all_connections
         }
-        self._token_store: TokenStore = store
-        if isinstance(store, InMemoryTokenStore):
+        self._token_store: TokenStore = ts
+        if isinstance(ts, InMemoryTokenStore):
             for c in all_connections:
-                if not store.has_token(c.token_ref):
-                    store.put_token(c.token_ref, f"stub-secret::{c.token_ref}")
+                if not ts.has_token(c.token_ref):
+                    ts.put_token(c.token_ref, f"stub-secret::{c.token_ref}")
 
     @classmethod
     def from_seed(
@@ -113,10 +129,14 @@ class ConnectionRegistry:
         if isinstance(self._token_store, InMemoryTokenStore):
             if not self._token_store.has_token(token_ref):
                 self._token_store.put_token(token_ref, f"stub-secret::{token_ref}")
+        if self._conn_store is not None:
+            self._conn_store.upsert(conn)
         return conn
 
     def disconnect(self, user_id: str, system: System) -> None:
         self._by_key.pop((user_id, system), None)
+        if self._conn_store is not None:
+            self._conn_store.delete(user_id, system)
 
     # --- credential resolution (the enforced rule) ---
 

@@ -80,33 +80,20 @@
   <span class="brand">AI Continuity Assistant</span>
   <a href="/">Assistant</a>
   <a href="/connections">Connections</a>
-  <a href="/admin">Admin</a>
-  <form class="user-switcher" method="get" action="/user-switch">
-    <label for="user-select">Active user:</label>
-    <select id="user-select" name="user" onchange="this.form.submit()">
-      <option value="mark" {% if active_user == 'mark' %}selected{% endif %}>mark</option>
-      <option value="anna" {% if active_user == 'anna' %}selected{% endif %}>anna</option>
-      <option value="lucy" {% if active_user == 'lucy' %}selected{% endif %}>lucy</option>
-    </select>
-    <noscript><button type="submit">Switch</button></noscript>
-  </form>
+  {% if is_admin %}<a href="/admin">Admin</a>{% endif %}
+  {% if active_user %}
+  <div class="user-info" style="margin-left:auto; display:flex; align-items:center; gap:0.75rem;">
+    <span style="font-size:0.875rem; color:#cdd6f4;">
+      Signed in as <strong>{{ active_user_name or active_user }}</strong>
+    </span>
+    <form method="post" action="/logout" style="margin:0;">
+      <button type="submit" style="padding:0.2rem 0.6rem; border-radius:4px; border:none; background:#c92a2a; color:#fff; cursor:pointer; font-size:0.875rem;">
+        Sign out
+      </button>
+    </form>
+  </div>
+  {% endif %}
 </nav>
-<!-- JS user-switch shim: POST /user -->
-<script>
-  (function() {
-    var sel = document.getElementById('user-select');
-    if (sel) {
-      sel.form.addEventListener('submit', function(e) {
-        e.preventDefault();
-        var f = document.createElement('form');
-        f.method = 'post'; f.action = '/user';
-        var inp = document.createElement('input');
-        inp.type = 'hidden'; inp.name = 'user'; inp.value = sel.value;
-        f.appendChild(inp); document.body.appendChild(f); f.submit();
-      });
-    }
-  })();
-</script>
 
 <div class="container">
   {% block content %}{% endblock %}

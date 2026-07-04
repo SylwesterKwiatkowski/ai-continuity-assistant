@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Sign in</h1>
+
+{% if auth_mode == "dev" %}
+<div style="background:#fff3bf; border:1px solid #f59f00; border-radius:6px; padding:0.75rem 1rem; margin-bottom:1rem; font-size:0.875rem;">
+  <strong>Dev/demo authentication — not for production.</strong>
+</div>
+
+{% if error %}
+<div style="background:#ffe3e3; border:1px solid #c92a2a; border-radius:6px; padding:0.75rem 1rem; margin-bottom:1rem; font-size:0.875rem; color:#c92a2a;">
+  {{ error }}
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Select user (dev mode)</h2>
+  <form method="post" action="/login">
+    <label for="user-select">User</label>
+    <select id="user-select" name="user">
+      {% for person in people %}
+      <option value="{{ person.id }}">{{ person.name }} ({{ person.id }})</option>
+      {% endfor %}
+    </select>
+    <button type="submit">Sign in (dev mode)</button>
+  </form>
+</div>
+{% else %}
+<div class="card">
+  <p>OAuth sign-in is not configured yet.</p>
+</div>
+{% endif %}
+{% endblock %}

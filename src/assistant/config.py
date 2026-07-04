@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     # Per-user token store (encryption key). Stub/no-op in MVP; must be set in prod.
     token_store_key: str = "dev-only-not-secret"
 
+    # Auth mode: "dev" enables the demo user picker; "oauth" shows OAuth placeholder.
+    # SESSION_SECRET must be a real secret in prod.
+    auth_mode: Literal["dev", "oauth"] = "dev"
+    session_secret: str = "dev-only-session-secret"
+    session_ttl_hours: int = 8
+
     # Summarizer (LLM). Unused while the deterministic stub is active.
     llm_api_key: str = ""
     llm_model: str = "claude-opus-4-8"

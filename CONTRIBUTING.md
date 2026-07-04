@@ -117,12 +117,11 @@ docs/               the five living documents + ROADMAP + TESTING
 
 ## Current known limitations (honest list)
 
-- Identity is a **cookie-based user-switcher stub** — replace with real auth before anything
-  else (see ROADMAP v0.2.0).
-- No persistence: audit/policies/approvals/connections are in-memory or JSON-seeded;
-  restart loses runtime state (`DATABASE_URL` is reserved but unused).
+- Authentication is **signed-session based with a dev login provider** (user picker behind
+  `AUTH_MODE=dev`). The Google OAuth provider is not wired yet — do not expose this app
+  beyond localhost/demo until it is (see ROADMAP v0.2.0 remainder, DECISIONS D17).
 - All connectors are mocks; `connectors/real/` is empty.
-- Approval requests are persisted in-memory but approvers are not notified yet.
+- Approval requests are persisted but approvers are not notified yet.
 - The "shared" access tier is designed (SECURITY_MODEL) but the engine currently resolves
   only self/delegated; project-membership modeling is pending.
 

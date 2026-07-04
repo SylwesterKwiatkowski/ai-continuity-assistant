@@ -1,7 +1,8 @@
 """Web UI routes — server-rendered Jinja2 + HTMX (with plain form POST fallback).
 
-Active user is read from the "active_user" cookie (default: "mark").
-This is an MVP identity stub — real authentication replaces the cookie mechanism.
+Authentication is handled via signed session cookies (see identity/sessions.py).
+In ``auth_mode=dev`` a user-picker form lets you choose any person; in
+``auth_mode=oauth`` only an OAuth placeholder is shown.
 
 The web layer must NOT call connectors, registry internals, or the engine directly;
 all data goes through Orchestrator methods only.
@@ -13,12 +14,13 @@ import json
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Cookie, Form, Request, Response
+from fastapi import APIRouter, Form, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.templating import _TemplateResponse
 
 from assistant.domain.enums import System
+from assistant.identity.sessions import SessionManager
 from assistant.orchestrator.responses import AssistantResponse
 from assistant.orchestrator.service import Orchestrator
 
@@ -30,12 +32,29 @@ router = APIRouter()
 _ALL_SYSTEMS = list(System)
 
 
+# ------------------------------------------------------------------ helpers
+
+
 def _get_orchestrator(request: Request) -> Orchestrator:
     return request.app.state.orchestrator  # type: ignore[no-any-return]
 
 
-def _active_user(active_user: str | None) -> str:
-    return active_user or "mark"
+def _get_session_manager(request: Request) -> SessionManager:
+    return request.app.state.services.session_manager  # type: ignore[no-any-return]
+
+
+def _session_user(request: Request) -> str | None:
+    """Return the authenticated user_id from the session cookie, or None."""
+    token = request.cookies.get("session")
+    return _get_session_manager(request).verify(token)
+
+
+def _require_user(request: Request) -> str | RedirectResponse:
+    """Return the user_id or a redirect to /login if unauthenticated."""
+    user = _session_user(request)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    return user
 
 
 def _render(
@@ -47,65 +66,120 @@ def _render(
     return templates.TemplateResponse(request, template, ctx)
 
 
-# ------------------------------------------------------------------ user switcher
+def _user_ctx(request: Request, user: str) -> dict[str, Any]:
+    """Build the common template context for an authenticated user."""
+    resolver = request.app.state.services.resolver
+    person = resolver.by_id(user)
+    return {
+        "active_user": user,
+        "active_user_name": person.name,
+        "is_admin": "admin" in person.roles,
+    }
 
 
-@router.post("/user")
-def set_user(
-    response: Response,  # noqa: ARG001
+# ------------------------------------------------------------------ login / logout
+
+
+@router.get("/login", response_class=HTMLResponse, response_model=None)
+def login_page(request: Request) -> _TemplateResponse:
+    settings = request.app.state.settings
+    resolver = request.app.state.services.resolver
+    return _render(
+        request,
+        "login.html",
+        {
+            "auth_mode": settings.auth_mode,
+            "people": resolver.people,
+            "error": None,
+            "active_user": None,
+            "active_user_name": None,
+            "is_admin": False,
+        },
+    )
+
+
+@router.post("/login")
+def login_post(
+    request: Request,
     user: str = Form(...),
-) -> RedirectResponse:
-    """Set the active user cookie and redirect back to index."""
-    redirect = RedirectResponse(url="/", status_code=303)
-    redirect.set_cookie("active_user", user, httponly=True, samesite="lax")
+) -> Response:
+    settings = request.app.state.settings
+    if settings.auth_mode != "dev":
+        return Response("dev login disabled", status_code=403)
+    resolver = request.app.state.services.resolver
+    try:
+        person = resolver.by_id(user)
+    except Exception:  # noqa: BLE001
+        return _render(
+            request,
+            "login.html",
+            {
+                "auth_mode": settings.auth_mode,
+                "people": resolver.people,
+                "error": f"Unknown user: {user!r}",
+                "active_user": None,
+                "active_user_name": None,
+                "is_admin": False,
+            },
+        )
+    sm = _get_session_manager(request)
+    token = sm.issue(person.id)
+    redirect = RedirectResponse("/", status_code=303)
+    redirect.set_cookie("session", token, httponly=True, samesite="lax")
+    return redirect
+
+
+@router.post("/logout")
+def logout(request: Request) -> RedirectResponse:  # noqa: ARG001
+    redirect = RedirectResponse("/login", status_code=303)
+    redirect.delete_cookie("session")
     return redirect
 
 
 # ------------------------------------------------------------------ index
 
 
-@router.get("/", response_class=HTMLResponse)
-def index(
-    request: Request,
-    active_user: str | None = Cookie(default=None),
-) -> _TemplateResponse:
-    return _render(
-        request,
-        "index.html",
-        {"active_user": _active_user(active_user), "response": None},
-    )
+@router.get("/", response_class=HTMLResponse, response_model=None)
+def index(request: Request) -> _TemplateResponse | RedirectResponse:
+    result = _require_user(request)
+    if isinstance(result, RedirectResponse):
+        return result
+    ctx = _user_ctx(request, result)
+    return _render(request, "index.html", {**ctx, "response": None})
 
 
 # ------------------------------------------------------------------ flows
 
 
-@router.post("/flows/weekly", response_class=HTMLResponse)
+@router.post("/flows/weekly", response_class=HTMLResponse, response_model=None)
 def flow_weekly(
     request: Request,
     target: str = Form(default="Anna"),
-    active_user: str | None = Cookie(default=None),
-) -> _TemplateResponse:
-    user = _active_user(active_user)
-    orch = _get_orchestrator(request)
-    resp = orch.weekly_tasks(user, target)
-    return _render(request, "index.html", {"active_user": user, "response": resp})
+) -> _TemplateResponse | RedirectResponse:
+    result = _require_user(request)
+    if isinstance(result, RedirectResponse):
+        return result
+    ctx = _user_ctx(request, result)
+    resp = _get_orchestrator(request).weekly_tasks(result, target)
+    return _render(request, "index.html", {**ctx, "response": resp})
 
 
-@router.post("/flows/email", response_class=HTMLResponse)
+@router.post("/flows/email", response_class=HTMLResponse, response_model=None)
 def flow_email(
     request: Request,
     target: str = Form(default="Anna"),
     client: str = Form(default="ClientCo"),
     project: str = Form(default="API Integration"),
-    active_user: str | None = Cookie(default=None),
-) -> _TemplateResponse:
-    user = _active_user(active_user)
-    orch = _get_orchestrator(request)
-    resp = orch.search_email(user, target, client=client, project=project)
-    return _render(request, "index.html", {"active_user": user, "response": resp})
+) -> _TemplateResponse | RedirectResponse:
+    result = _require_user(request)
+    if isinstance(result, RedirectResponse):
+        return result
+    ctx = _user_ctx(request, result)
+    resp = _get_orchestrator(request).search_email(result, target, client=client, project=project)
+    return _render(request, "index.html", {**ctx, "response": resp})
 
 
-@router.post("/flows/teams", response_class=HTMLResponse)
+@router.post("/flows/teams", response_class=HTMLResponse, response_model=None)
 def flow_teams(
     request: Request,
     target: str = Form(default="Anna"),
@@ -113,82 +187,83 @@ def flow_teams(
     project: str = Form(default="API Integration"),
     channels: str = Form(default="ClientCo Delivery"),
     keywords: str = Form(default="endpoint"),
-    active_user: str | None = Cookie(default=None),
-) -> _TemplateResponse:
-    user = _active_user(active_user)
-    orch = _get_orchestrator(request)
+) -> _TemplateResponse | RedirectResponse:
+    result = _require_user(request)
+    if isinstance(result, RedirectResponse):
+        return result
+    ctx = _user_ctx(request, result)
     channel_list = [c.strip() for c in channels.split(",") if c.strip()]
     keyword_list = [k.strip() for k in keywords.split(",") if k.strip()]
-    resp = orch.search_teams(
-        user, target, client=client, project=project,
+    resp = _get_orchestrator(request).search_teams(
+        result, target,
+        client=client, project=project,
         channels=channel_list, keywords=keyword_list,
     )
-    return _render(request, "index.html", {"active_user": user, "response": resp})
+    return _render(request, "index.html", {**ctx, "response": resp})
 
 
-@router.post("/flows/project", response_class=HTMLResponse)
+@router.post("/flows/project", response_class=HTMLResponse, response_model=None)
 def flow_project(
     request: Request,
     project: str = Form(default="API Integration"),
     client: str = Form(default="ClientCo"),
-    active_user: str | None = Cookie(default=None),
-) -> _TemplateResponse:
-    user = _active_user(active_user)
-    orch = _get_orchestrator(request)
-    resp = orch.project_detail(user, project=project, client=client)
-    return _render(request, "index.html", {"active_user": user, "response": resp})
+) -> _TemplateResponse | RedirectResponse:
+    result = _require_user(request)
+    if isinstance(result, RedirectResponse):
+        return result
+    ctx = _user_ctx(request, result)
+    resp = _get_orchestrator(request).project_detail(result, project=project, client=client)
+    return _render(request, "index.html", {**ctx, "response": resp})
 
 
-@router.post("/flows/jira", response_class=HTMLResponse)
+@router.post("/flows/jira", response_class=HTMLResponse, response_model=None)
 def flow_jira(
     request: Request,
     project: str = Form(default="API Integration"),
     summary: str = Form(default=""),
     confirm: str | None = Form(default=None),
-    active_user: str | None = Cookie(default=None),
-) -> _TemplateResponse:
-    user = _active_user(active_user)
-    # Confirmation checkbox is required for all write actions.
+) -> _TemplateResponse | RedirectResponse:
+    result = _require_user(request)
+    if isinstance(result, RedirectResponse):
+        return result
+    ctx = _user_ctx(request, result)
     if not confirm:
         error_resp = AssistantResponse(
             allowed=False,
             summary="Write actions require explicit confirmation.",
             access_reason="User did not confirm the write action.",
         )
-        return _render(
-            request, "index.html", {"active_user": user, "response": error_resp}
-        )
-    orch = _get_orchestrator(request)
-    resp = orch.create_jira_task(user, project=project, summary=summary)
-    return _render(request, "index.html", {"active_user": user, "response": resp})
+        return _render(request, "index.html", {**ctx, "response": error_resp})
+    resp = _get_orchestrator(request).create_jira_task(result, project=project, summary=summary)
+    return _render(request, "index.html", {**ctx, "response": resp})
 
 
-@router.post("/flows/flagship", response_class=HTMLResponse)
+@router.post("/flows/flagship", response_class=HTMLResponse, response_model=None)
 def flow_flagship(
     request: Request,
     target: str = Form(default="Anna"),
     client: str = Form(default="ClientCo"),
     project: str = Form(default="API Integration"),
-    active_user: str | None = Cookie(default=None),
-) -> _TemplateResponse:
-    user = _active_user(active_user)
-    orch = _get_orchestrator(request)
-    resp = orch.flagship(user, target, client=client, project=project)
-    return _render(request, "index.html", {"active_user": user, "response": resp})
+) -> _TemplateResponse | RedirectResponse:
+    result = _require_user(request)
+    if isinstance(result, RedirectResponse):
+        return result
+    ctx = _user_ctx(request, result)
+    resp = _get_orchestrator(request).flagship(result, target, client=client, project=project)
+    return _render(request, "index.html", {**ctx, "response": resp})
 
 
 # ------------------------------------------------------------------ connections
 
 
-@router.get("/connections", response_class=HTMLResponse)
-def connections_page(
-    request: Request,
-    active_user: str | None = Cookie(default=None),
-) -> _TemplateResponse:
-    user = _active_user(active_user)
-    orch = _get_orchestrator(request)
-    registry = orch.connections_registry
-    user_conns = {c.system: c for c in registry.list_for_user(user)}
+@router.get("/connections", response_class=HTMLResponse, response_model=None)
+def connections_page(request: Request) -> _TemplateResponse | RedirectResponse:
+    result = _require_user(request)
+    if isinstance(result, RedirectResponse):
+        return result
+    ctx = _user_ctx(request, result)
+    registry = _get_orchestrator(request).connections_registry
+    user_conns = {c.system: c for c in registry.list_for_user(result)}
     rows: list[dict[str, Any]] = [
         {
             "system": sys,
@@ -196,18 +271,19 @@ def connections_page(
         }
         for sys in _ALL_SYSTEMS
     ]
-    return _render(request, "connections.html", {"active_user": user, "rows": rows})
+    return _render(request, "connections.html", {**ctx, "rows": rows})
 
 
 @router.post("/connections/toggle")
 def connections_toggle(
     request: Request,
     system: str = Form(...),
-    active_user: str | None = Cookie(default=None),
 ) -> RedirectResponse:
-    user = _active_user(active_user)
-    orch = _get_orchestrator(request)
-    registry = orch.connections_registry
+    result = _require_user(request)
+    if isinstance(result, RedirectResponse):
+        return result
+    user = result
+    registry = _get_orchestrator(request).connections_registry
     try:
         sys_enum = System(system)
     except ValueError:
@@ -223,12 +299,20 @@ def connections_toggle(
 # ------------------------------------------------------------------ admin
 
 
-@router.get("/admin", response_class=HTMLResponse)
-def admin_page(
-    request: Request,
-    active_user: str | None = Cookie(default=None),
-) -> _TemplateResponse:
-    user = _active_user(active_user)
+@router.get("/admin", response_class=HTMLResponse, response_model=None)
+def admin_page(request: Request) -> _TemplateResponse | RedirectResponse | HTMLResponse:
+    result = _require_user(request)
+    if isinstance(result, RedirectResponse):
+        return result
+    user = result
+    resolver = request.app.state.services.resolver
+    person = resolver.by_id(user)
+    if "admin" not in person.roles:
+        return HTMLResponse(
+            "<h1>403 Forbidden</h1><p>Admin access required.</p>", status_code=403
+        )
+
+    ctx = _user_ctx(request, user)
     orch = _get_orchestrator(request)
 
     # Audit events: newest first
@@ -252,7 +336,7 @@ def admin_page(
         request,
         "admin.html",
         {
-            "active_user": user,
+            **ctx,
             "events": events,
             "pending": pending,
             "mailbox_policies": mailbox_policies,
