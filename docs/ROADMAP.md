@@ -20,6 +20,8 @@ The MVP's two declared weaknesses, fixed before any real data is wired:
       `AUTH_MODE=oauth` disables it. See DECISIONS D17.
 - [ ] **Google OAuth provider** for `/login` — needs real Google Cloud client credentials;
       plugs into the same session flow (remainder of "real authentication").
+      **Setup guide ready:** [`GOOGLE_OAUTH_SETUP.md`](GOOGLE_OAUTH_SETUP.md) — a one-time
+      ~20-minute task for whoever owns the Google account; also unblocks all of v0.3.
 - [x] **Persistence** (2026-07-04): SQLite via the repository interfaces for audit events,
       policies, approvals, connections; state survives restarts. `DATABASE_URL` is real.
       See DECISIONS D18.
