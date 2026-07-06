@@ -158,6 +158,7 @@ non-negotiable security rules, and the release checklist. Then:
 
 | Doc | What it answers |
 |---|---|
+| [`docs/ONBOARDING_CHECKLIST.md`](docs/ONBOARDING_CHECKLIST.md) | One-page day-1 checklist (setup, smoke test, Google Cloud, first tasks) |
 | [`docs/SECURITY_MODEL.md`](docs/SECURITY_MODEL.md) | The contract all code must obey |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Components, data flow, boundaries |
 | [`docs/TESTING.md`](docs/TESTING.md) | Automated gates + manual smoke procedure |

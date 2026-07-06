@@ -3,6 +3,10 @@
 Welcome. This document is the entry point for anyone developing this project. Read it fully
 before writing code — this codebase has **security invariants that are not optional**.
 
+> **Brand new here?** Start with the one-page
+> [`docs/ONBOARDING_CHECKLIST.md`](docs/ONBOARDING_CHECKLIST.md) — day-1 setup, smoke test,
+> Google Cloud track, and your first coding tasks.
+
 ## What this project is (60 seconds)
 
 An internal, permission-gated assistant that recovers work context (tasks, emails, chats,
