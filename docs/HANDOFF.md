@@ -43,12 +43,12 @@ guide, onboarding checklist). **The next work is code, not docs.**
 ## What's NOT built yet — pick up here
 
 1. **Google OAuth login provider for `/login`** — the one thing blocking the rest of v0.2.
-   This is **two separate steps, not one**:
-   - **Step A (account owner, no code involved):** stand up the Google Cloud project and
+   This is **two separate steps, not one**, both owned by the developer:
+   - **Step A (no code involved):** stand up the Google Cloud project and
      generate the OAuth client ID/secret, per
      [`docs/GOOGLE_OAUTH_SETUP.md`](GOOGLE_OAUTH_SETUP.md) (~20 min). Drop the values into
      `.env` (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`).
-   - **Step B (developer, unscoped — do this after Step A):** those `.env` keys are **not yet
+   - **Step B (unscoped — do this after Step A):** those `.env` keys are **not yet
      read anywhere**. Verified directly in the code: `src/assistant/config.py`'s `Settings`
      class has no `google_client_id`/`google_client_secret`/`google_redirect_uri` fields at all
      (`.env.example` lists them with a comment noting they'll be "read by Settings once the
