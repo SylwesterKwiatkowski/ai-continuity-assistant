@@ -1,6 +1,6 @@
 # Developer Handoff — AI Business Continuity Assistant
 
-_Snapshot as of 2026-07-29, HEAD `7cc9d33` on `post-mvp` (in sync with `origin/post-mvp`, merged into `main`)._
+_Snapshot as of 2026-07-29, HEAD `8b99a0a` on `post-mvp` (pushed to `origin/post-mvp`, CI green in 30s)._
 
 ## 30-second pitch
 
@@ -20,8 +20,8 @@ Full pitch: [`README.md`](../README.md). Full contract: [`docs/SECURITY_MODEL.md
 | `pytest -q` | **109 passed**, 0 failed |
 | `ruff check src tests` | **All checks passed** |
 | `mypy src` (strict) | **Success, no issues, 50 source files** |
-| CI (`.github/workflows/ci.yml`) | Green on every push since setup (2026-07-03) |
-| Working tree | Clean, `post-mvp` == `origin/post-mvp` |
+| CI (`.github/workflows/ci.yml`) | Green on every push since setup (2026-07-03), incl. this doc's push |
+| Working tree | Clean, `post-mvp` == `origin/post-mvp` at `8b99a0a` |
 
 The codebase itself has been **stable since commit `56419ed`** (2026-07-04, a supervisor-review
 hardening pass). Every commit after that is docs-only (README demo section, Google OAuth setup
