@@ -19,6 +19,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.templating import _TemplateResponse
 
 from assistant.domain.enums import System
+from assistant.identity.oauth import GoogleOAuthError, GoogleOAuthProvider
 from assistant.identity.sessions import SessionManager
 from assistant.orchestrator.responses import AssistantResponse
 from assistant.orchestrator.service import Orchestrator
@@ -29,6 +30,7 @@ templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 router = APIRouter()
 
 _ALL_SYSTEMS = list(System)
+_OAUTH_STATE_COOKIE = "oauth_state"  # noqa: S105 (cookie name, not a secret)
 
 
 # ------------------------------------------------------------------ helpers
@@ -40,6 +42,10 @@ def _get_orchestrator(request: Request) -> Orchestrator:
 
 def _get_session_manager(request: Request) -> SessionManager:
     return request.app.state.services.session_manager  # type: ignore[no-any-return]
+
+
+def _get_oauth_provider(request: Request) -> GoogleOAuthProvider | None:
+    return request.app.state.services.oauth_provider  # type: ignore[no-any-return]
 
 
 def _session_user(request: Request) -> str | None:
@@ -79,22 +85,23 @@ def _user_ctx(request: Request, user: str) -> dict[str, Any]:
 # ------------------------------------------------------------------ login / logout
 
 
-@router.get("/login", response_class=HTMLResponse, response_model=None)
-def login_page(request: Request) -> _TemplateResponse:
+def _login_ctx(request: Request, error: str | None = None) -> dict[str, Any]:
     settings = request.app.state.settings
     resolver = request.app.state.services.resolver
-    return _render(
-        request,
-        "login.html",
-        {
-            "auth_mode": settings.auth_mode,
-            "people": resolver.people,
-            "error": None,
-            "active_user": None,
-            "active_user_name": None,
-            "is_admin": False,
-        },
-    )
+    return {
+        "auth_mode": settings.auth_mode,
+        "people": resolver.people,
+        "error": error,
+        "google_oauth_configured": _get_oauth_provider(request) is not None,
+        "active_user": None,
+        "active_user_name": None,
+        "is_admin": False,
+    }
+
+
+@router.get("/login", response_class=HTMLResponse, response_model=None)
+def login_page(request: Request) -> _TemplateResponse:
+    return _render(request, "login.html", _login_ctx(request))
 
 
 @router.post("/login")
@@ -109,18 +116,7 @@ def login_post(
     try:
         person = resolver.by_id(user)
     except Exception:  # noqa: BLE001
-        return _render(
-            request,
-            "login.html",
-            {
-                "auth_mode": settings.auth_mode,
-                "people": resolver.people,
-                "error": f"Unknown user: {user!r}",
-                "active_user": None,
-                "active_user_name": None,
-                "is_admin": False,
-            },
-        )
+        return _render(request, "login.html", _login_ctx(request, error=f"Unknown user: {user!r}"))
     sm = _get_session_manager(request)
     token = sm.issue(person.id)
     redirect = RedirectResponse("/", status_code=303)
@@ -134,6 +130,81 @@ def login_post(
 def logout(request: Request) -> RedirectResponse:  # noqa: ARG001
     redirect = RedirectResponse("/login", status_code=303)
     redirect.delete_cookie("session")
+    return redirect
+
+
+# ------------------------------------------------------------------ Google OAuth login
+
+
+@router.get("/auth/google/login")
+def google_login(request: Request) -> Response:
+    """Redirect to Google's consent screen. Only active in auth_mode=oauth."""
+    settings = request.app.state.settings
+    provider = _get_oauth_provider(request)
+    if settings.auth_mode != "oauth" or provider is None:
+        return Response("Google OAuth is not configured", status_code=403)
+    state = provider.new_state()
+    redirect = RedirectResponse(provider.authorization_url(state), status_code=302)
+    redirect.set_cookie(
+        _OAUTH_STATE_COOKIE,
+        state,
+        httponly=True,
+        samesite="lax",
+        secure=settings.is_prod,
+        max_age=600,
+    )
+    return redirect
+
+
+@router.get("/auth/google/callback", response_class=HTMLResponse, response_model=None)
+def google_callback(
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+) -> Response:
+    """Complete the code exchange and grant a session — only for a pre-registered Person.
+
+    A verified Google account that doesn't match a seeded Person's email is refused, not
+    auto-provisioned: this system's whole permission model is keyed to known identities
+    (DECISIONS.md D8), so an unregistered Google account cannot gain access just by
+    existing.
+    """
+    settings = request.app.state.settings
+    provider = _get_oauth_provider(request)
+    if settings.auth_mode != "oauth" or provider is None:
+        return Response("Google OAuth is not configured", status_code=403)
+
+    def _login_error(message: str) -> _TemplateResponse:
+        return _render(request, "login.html", _login_ctx(request, error=message))
+
+    if error:
+        return _login_error("Google sign-in was cancelled or denied.")
+
+    expected_state = request.cookies.get(_OAUTH_STATE_COOKIE)
+    if not state or not expected_state or state != expected_state:
+        return _login_error("Sign-in session expired or invalid — please try again.")
+    if not code:
+        return _login_error("Google did not return an authorization code.")
+
+    try:
+        email = provider.resolve_login_email(code)
+    except GoogleOAuthError:
+        return _login_error("Could not verify your Google account. Please try again.")
+
+    resolver = request.app.state.services.resolver
+    try:
+        person = resolver.by_email(email)
+    except Exception:  # noqa: BLE001
+        return _login_error("This Google account is not registered for this assistant.")
+
+    sm = _get_session_manager(request)
+    token = sm.issue(person.id)
+    redirect = RedirectResponse("/", status_code=303)
+    redirect.set_cookie(
+        "session", token, httponly=True, samesite="lax", secure=settings.is_prod
+    )
+    redirect.delete_cookie(_OAUTH_STATE_COOKIE)
     return redirect
 
 

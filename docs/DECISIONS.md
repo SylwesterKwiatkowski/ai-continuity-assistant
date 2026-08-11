@@ -165,3 +165,30 @@ Each entry: **decision** · **why** · **tradeoffs / alternatives** · **status*
 - **Why:** fulfills D7 with the smallest dependency surface (only `cryptography` added);
   swapping to Postgres later means reimplementing the small repository classes, nothing else.
 - **Status:** Implemented (v0.2). Audit/approval/connection state survives restarts.
+
+### D19 — v0.2 remainder: Google OAuth login provider
+- **What:** `identity/oauth.py` (`GoogleOAuthProvider`) implements the confidential-client
+  Authorization Code flow by hand against Google's endpoints, using `httpx` — no
+  `google-auth`/`authlib` dependency, matching D18's smallest-dependency-surface stance.
+  `GET /auth/google/login` redirects to Google's consent screen with a random `state`
+  stored in a short-lived cookie; `GET /auth/google/callback` verifies `state` (CSRF),
+  exchanges the code for an access token, calls Google's `userinfo` endpoint, and requires
+  `email_verified: true`. Both routes 403 unless `AUTH_MODE=oauth` and
+  `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` are set (`config.py`); `bootstrap.py` only
+  constructs a `GoogleOAuthProvider` when both are present, so an unconfigured deployment
+  keeps showing the existing placeholder on `/login`.
+- **Why:** this is login only — it grants a *session*, never data access. A verified Google
+  account is looked up by email against the seeded `Person` list (`identity/resolver.py`,
+  D8) and **refused if no match exists**; the provider never creates a `Person`. This is
+  deliberate: the whole permission model (access tiers, delegated policies, audit) is keyed
+  to known identities, so letting any Google account in — even a verified one — would let
+  anyone outside the org obtain a session by signing in with their own Gmail. Per-user data
+  connections (Gmail/Calendar/etc., D6) remain separate and still require the user to
+  connect them on `/connections`; login does not imply any connector access.
+- **Tradeoffs:** no `id_token` JWT signature verification — instead the email comes from an
+  authenticated call to Google's own `userinfo` endpoint using the access token obtained
+  server-side during the exchange, which is an equally valid (and simpler) trust path for a
+  confidential client. Revisit if refresh tokens / offline access are ever needed for login
+  itself (not needed today: `access_type=online`).
+- **Status:** Implemented. Finishes the v0.2 "real authentication" item from `ROADMAP.md`;
+  real Google *connectors* (Calendar/Gmail/Sheets/Drive, v0.3) are unrelated follow-up work.

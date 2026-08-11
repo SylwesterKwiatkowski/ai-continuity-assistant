@@ -18,6 +18,7 @@ from assistant.connectors.mock import build_mock_registry
 from assistant.connectors.protocols import CalendarPort
 from assistant.domain.enums import System
 from assistant.identity.connections import ConnectionRegistry
+from assistant.identity.oauth import GoogleOAuthProvider
 from assistant.identity.resolver import IdentityResolver
 from assistant.identity.sessions import SessionManager
 from assistant.orchestrator.service import Orchestrator, _CalendarAbsence  # noqa: PLC2701
@@ -44,6 +45,7 @@ class AppServices:
     resolver: IdentityResolver
     settings: Settings
     policy_store: SqlitePolicyStore
+    oauth_provider: GoogleOAuthProvider | None
 
 
 def build_app_services(
@@ -95,10 +97,19 @@ def build_app_services(
 
     session_manager = SessionManager(settings.session_secret, settings.session_ttl_hours)
 
+    oauth_provider = None
+    if settings.google_client_id and settings.google_client_secret:
+        oauth_provider = GoogleOAuthProvider(
+            client_id=settings.google_client_id,
+            client_secret=settings.google_client_secret,
+            redirect_uri=settings.google_redirect_uri,
+        )
+
     return AppServices(
         orchestrator=orchestrator,
         session_manager=session_manager,
         resolver=resolver,
         settings=settings,
         policy_store=policy_store,
+        oauth_provider=oauth_provider,
     )

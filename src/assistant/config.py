@@ -46,6 +46,13 @@ class Settings(BaseSettings):
     session_secret: str = DEV_SESSION_SECRET
     session_ttl_hours: int = 8
 
+    # Google OAuth login provider (DECISIONS.md D19). Empty until an admin runs
+    # docs/GOOGLE_OAUTH_SETUP.md; the provider is only wired up once both id and secret
+    # are set.
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_redirect_uri: str = "http://localhost:8000/auth/google/callback"
+
     # Summarizer (LLM). Unused while the deterministic stub is active.
     llm_api_key: str = ""
     llm_model: str = "claude-opus-4-8"
