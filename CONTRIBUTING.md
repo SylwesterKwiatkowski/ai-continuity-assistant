@@ -121,10 +121,14 @@ docs/               the five living documents + ROADMAP + TESTING
 
 ## Current known limitations (honest list)
 
-- Authentication is **signed-session based with a dev login provider** (user picker behind
-  `AUTH_MODE=dev`). The Google OAuth provider is not wired yet — do not expose this app
-  beyond localhost/demo until it is (see ROADMAP v0.2.0 remainder, DECISIONS D17).
-- All connectors are mocks; `connectors/real/` is empty.
+- Authentication is **signed-session based**, with two login providers behind `/login`:
+  a dev user-picker (`AUTH_MODE=dev`, demo only) and Google OAuth (`AUTH_MODE=oauth`, real
+  sign-in once `GOOGLE_CLIENT_ID`/`_SECRET` are set — see DECISIONS D19). A Google sign-in
+  only grants a session if the verified email matches a seeded `Person`; it never creates
+  one, so an outside Google account cannot obtain access this way.
+- All *data* connectors are still mocks; `connectors/real/` is empty (v0.3). Signing in with
+  a real Google account today still only sees the seeded demo data — OAuth login and real
+  data access are separate pieces of work.
 - Approval requests are persisted but approvers are not notified yet.
 - The "shared" access tier is designed (SECURITY_MODEL) but the engine currently resolves
   only self/delegated; project-membership modeling is pending.

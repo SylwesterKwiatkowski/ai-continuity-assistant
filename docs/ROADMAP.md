@@ -4,8 +4,9 @@ Post-MVP release plan. Work happens on `post-mvp`; each release merges to `main`
 after the release checklist in [`../CONTRIBUTING.md`](../CONTRIBUTING.md) passes.
 
 Status: **v0.1.0-mvp shipped** (M0–M7: security core, mock connectors, orchestrator flows,
-web app); **v0.2 in progress** — trust infrastructure landed, OAuth provider remaining.
-See `IMPLEMENTATION_PLAN.md` for MVP contents; current test count comes from CI, not docs.
+web app); **v0.2 complete** — trust infrastructure and the Google OAuth login provider
+have both landed. See `IMPLEMENTATION_PLAN.md` for MVP contents; current test count comes
+from CI, not docs.
 
 ## v0.2.0 — Trustworthy identity & memory  *(do this first)*
 
@@ -18,10 +19,11 @@ The MVP's two declared weaknesses, fixed before any real data is wired:
       replace the arbitrary cookie; identity comes only from a verified session. The user
       switcher survives solely as the dev login provider (`AUTH_MODE=dev`, warning banner);
       `AUTH_MODE=oauth` disables it. See DECISIONS D17.
-- [ ] **Google OAuth provider** for `/login` — needs real Google Cloud client credentials;
-      plugs into the same session flow (remainder of "real authentication").
-      **Setup guide ready:** [`GOOGLE_OAUTH_SETUP.md`](GOOGLE_OAUTH_SETUP.md) — a one-time
-      ~20-minute task for whoever owns the Google account; also unblocks all of v0.3.
+- [x] **Google OAuth provider** for `/login` (2026-08-03): `identity/oauth.py` implements
+      the Authorization Code flow; `/auth/google/login` + `/auth/google/callback` plug into
+      the existing session flow. Only activates once `GOOGLE_CLIENT_ID`/`_SECRET` are set —
+      follow [`GOOGLE_OAUTH_SETUP.md`](GOOGLE_OAUTH_SETUP.md) to generate them (one-time,
+      ~20 minutes; also unblocks all of v0.3). See DECISIONS D19.
 - [x] **Persistence** (2026-07-04): SQLite via the repository interfaces for audit events,
       policies, approvals, connections; state survives restarts. `DATABASE_URL` is real.
       See DECISIONS D18.
