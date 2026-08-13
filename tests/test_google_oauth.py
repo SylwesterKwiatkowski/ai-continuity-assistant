@@ -19,6 +19,12 @@ from assistant.api.app import create_app
 from assistant.bootstrap import AppServices, build_app_services
 from assistant.config import Settings
 from assistant.identity.oauth import GoogleOAuthError, GoogleOAuthProvider
+from assistant.identity.resolver import IdentityResolver
+
+# Read live from the seed rather than hardcoding a literal — keeps this test correct
+# (and free of any real person's email in the test source) regardless of who "mark" is
+# mapped to in seeds/people.json.
+_MARK_EMAIL = IdentityResolver.from_seed().by_id("mark").email
 
 
 def _make_app(tmp_path: Path, transport: httpx.MockTransport) -> tuple[FastAPI, AppServices]:
@@ -48,7 +54,7 @@ def _handler_success(request: httpx.Request) -> httpx.Response:
     if request.url.path == "/token":
         return httpx.Response(200, json={"access_token": "fake-access-token"})
     if request.url.path == "/v1/userinfo":
-        return httpx.Response(200, json={"email": "mark@acme.com", "email_verified": True})
+        return httpx.Response(200, json={"email": _MARK_EMAIL, "email_verified": True})
     raise AssertionError(f"unexpected request to {request.url}")
 
 
@@ -149,7 +155,7 @@ def test_google_callback_unverified_email_refused(tmp_path: Path) -> None:
         if request.url.path == "/token":
             return httpx.Response(200, json={"access_token": "fake-access-token"})
         if request.url.path == "/v1/userinfo":
-            return httpx.Response(200, json={"email": "mark@acme.com", "email_verified": False})
+            return httpx.Response(200, json={"email": _MARK_EMAIL, "email_verified": False})
         raise AssertionError(f"unexpected request to {request.url}")
 
     app, _ = _make_app(tmp_path, httpx.MockTransport(handler))
@@ -240,7 +246,7 @@ def test_resolve_login_email_success() -> None:
         redirect_uri="http://localhost:8000/auth/google/callback",
         client=httpx.Client(transport=httpx.MockTransport(_handler_success)),
     )
-    assert provider.resolve_login_email("some-code") == "mark@acme.com"
+    assert provider.resolve_login_email("some-code") == _MARK_EMAIL
 
 
 def test_exchange_code_failure_raises_google_oauth_error() -> None:

@@ -20,7 +20,8 @@ def test_resolve_by_name_case_insensitive(resolver: IdentityResolver) -> None:
 
 
 def test_resolve_by_email(resolver: IdentityResolver) -> None:
-    assert resolver.by_email("MARK@acme.com").id == "mark"
+    mark_email = resolver.by_id("mark").email
+    assert resolver.by_email(mark_email.upper()).id == "mark"
 
 
 def test_unknown_name_raises(resolver: IdentityResolver) -> None:

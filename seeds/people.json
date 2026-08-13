@@ -13,18 +13,18 @@
   {
     "id": "mark",
     "name": "Mark Smith",
-    "email": "mark@acme.com",
+    "email": "eduardo.nortega@globodigitalagency.com",
     "teams_id": "teams-mark",
     "jira_id": "jira-mark",
     "hubspot_id": "hs-mark",
     "manager_id": "lucy",
     "backup_owners": [],
-    "roles": []
+    "roles": ["admin"]
   },
   {
     "id": "lucy",
     "name": "Lucy Chen",
-    "email": "lucy@acme.com",
+    "email": "sylwester.kwiatkowski@globodigitalagency.com",
     "teams_id": "teams-lucy",
     "jira_id": "jira-lucy",
     "hubspot_id": "hs-lucy",

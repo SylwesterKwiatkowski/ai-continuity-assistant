@@ -135,10 +135,10 @@ def test_session_manager_valid_token_returns_user() -> None:
 # ------------------------------------------------------------------ admin access
 
 
-def test_non_admin_mark_gets_403_on_admin(tmp_path: Path) -> None:
+def test_non_admin_anna_gets_403_on_admin(tmp_path: Path) -> None:
     app, _ = _make_app(tmp_path)
     client = TestClient(app, raise_server_exceptions=True)
-    login(client, "mark")
+    login(client, "anna")
     resp = client.get("/admin")
     assert resp.status_code == 403
 
