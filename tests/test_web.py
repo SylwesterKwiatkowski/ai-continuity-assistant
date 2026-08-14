@@ -7,6 +7,7 @@ all delegated flows work deterministically regardless of real today.
 
 from __future__ import annotations
 
+import re
 from datetime import date
 from pathlib import Path
 
@@ -167,3 +168,70 @@ def test_lucy_no_policy_email_blocked(client: TestClient) -> None:
     )
     assert resp.status_code == 200
     assert "blocked" in resp.text
+
+
+# ------------------------------------------------------------------ 8. admin grant/deny
+
+
+def _blocked_lucy_approval_id(client: TestClient) -> str:
+    login(client, "lucy")
+    resp = client.post(
+        "/flows/email",
+        data={"target": "Anna", "client": "ClientCo", "project": "API Integration"},
+    )
+    assert "blocked" in resp.text
+    match = re.search(r"Approval request <strong>(\S+)</strong>", resp.text)
+    assert match, resp.text
+    return match.group(1)
+
+
+def test_non_admin_cannot_grant_approval(client: TestClient) -> None:
+    approval_id = _blocked_lucy_approval_id(client)
+    login(client, "anna")  # anna has no admin role
+    resp = client.post(f"/admin/approvals/{approval_id}/grant")
+    assert resp.status_code == 403
+
+
+def test_admin_grant_makes_the_blocked_read_succeed(client: TestClient, app: FastAPI) -> None:
+    approval_id = _blocked_lucy_approval_id(client)
+
+    login(client, "mark")  # also admin (post-D19 identity mapping)
+    resp = client.post(f"/admin/approvals/{approval_id}/grant", follow_redirects=False)
+    assert resp.status_code == 303
+
+    approval = app.state.orchestrator.approvals.get(approval_id)
+    assert approval is not None
+    assert approval.status == "granted"
+    assert approval.approver == "mark"
+
+    # The identical request from lucy now succeeds, no restart needed.
+    login(client, "lucy")
+    resp2 = client.post(
+        "/flows/email",
+        data={"target": "Anna", "client": "ClientCo", "project": "API Integration"},
+    )
+    assert "allowed" in resp2.text
+
+
+def test_admin_deny_leaves_the_read_blocked(client: TestClient, app: FastAPI) -> None:
+    approval_id = _blocked_lucy_approval_id(client)
+
+    login(client, "mark")
+    resp = client.post(
+        f"/admin/approvals/{approval_id}/deny",
+        data={"reason": "not right now"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+
+    approval = app.state.orchestrator.approvals.get(approval_id)
+    assert approval is not None
+    assert approval.status == "denied"
+    assert approval.reason == "not right now"
+
+    login(client, "lucy")
+    resp2 = client.post(
+        "/flows/email",
+        data={"target": "Anna", "client": "ClientCo", "project": "API Integration"},
+    )
+    assert "blocked" in resp2.text

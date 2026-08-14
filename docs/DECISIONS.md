@@ -192,3 +192,36 @@ Each entry: **decision** · **why** · **tradeoffs / alternatives** · **status*
   itself (not needed today: `access_type=online`).
 - **Status:** Implemented. Finishes the v0.2 "real authentication" item from `ROADMAP.md`;
   real Google *connectors* (Calendar/Gmail/Sheets/Drive, v0.3) are unrelated follow-up work.
+
+### D20 — v0.4 (partial): approval grant/deny, backed by multiple policies per person
+- **What:** `MailboxAccessPolicy`/`TeamsAccessPolicy` gained an `id` field (previously
+  identity was implicit in `mailbox_owner`/`target_user`). `SqlitePolicyStore` now keys
+  rows by `(kind, id)` instead of `(kind, owner)` — **several policies can now exist for
+  the same person at once** (e.g. the standing continuity policy plus one or more one-off
+  grants). `PermissionEngine` was changed to match: `_find_mailbox_policies`/
+  `_find_teams_policies` return *all* policies for an owner, and `_evaluate_mailbox`/
+  `_evaluate_teams` allow if *any one* of them authorizes the request. New
+  `engine.add_mailbox_policy()`/`add_teams_policy()` make a grant effective immediately, in
+  the running process, with no restart.
+  `Orchestrator.grant_approval()`/`deny_approval()` are the new admin actions (wired to
+  `POST /admin/approvals/{id}/grant`/`/deny`, admin-role-gated like the rest of `/admin`).
+  Granting materializes a policy scoped to exactly what was requested (client/project/
+  domain, or channels/keywords/participants for Teams), naming only the original
+  `requester` as `allowed_requesters`, expiring after `GRANT_DURATION_DAYS` (14, a module
+  constant). Both grant and deny emit an audit event via the existing `record_write` (the
+  decision itself is an admin action, not a data read) and update the `ApprovalRequest`'s
+  `status`/`approver`/`decided_at` in place.
+- **Why the schema change was necessary, not optional:** the original `(kind, owner)` key
+  meant persisting a second policy for the same owner would silently overwrite the first
+  via `INSERT OR REPLACE` — a grant to a new requester would have **deleted the existing
+  continuity policy** without anyone noticing. Caught before shipping (not from an
+  incident); D8/D6's "known identities, least privilege" spirit is what the multi-policy
+  model preserves — see CONTRIBUTING.md's non-negotiable #3.
+- **Tradeoffs / what's still open (rest of v0.4.0 in ROADMAP.md):** no approver
+  notification yet (an admin must know to check `/admin`); no transparency-to-target hook
+  fired for the grant itself (the *subsequent read* still fires it, per D-existing
+  behavior); no "revoke a granted policy" UI yet, though
+  `SqlitePolicyStore.delete_mailbox`/`delete_teams` exist for it to be added without
+  another schema change. `GRANT_DURATION_DAYS` is a fixed constant, not requester-chosen.
+- **Status:** Implemented (grant/deny core loop only). ruff, mypy --strict, and the full
+  pytest suite (136 tests) are green.

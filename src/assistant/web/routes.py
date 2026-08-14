@@ -23,6 +23,7 @@ from assistant.identity.oauth import GoogleOAuthError, GoogleOAuthProvider
 from assistant.identity.sessions import SessionManager
 from assistant.orchestrator.responses import AssistantResponse
 from assistant.orchestrator.service import Orchestrator
+from assistant.permissions.approvals import ApprovalAlreadyDecided, ApprovalNotFound
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
@@ -371,18 +372,26 @@ def connections_toggle(
 # ------------------------------------------------------------------ admin
 
 
-@router.get("/admin", response_class=HTMLResponse, response_model=None)
-def admin_page(request: Request) -> _TemplateResponse | RedirectResponse | HTMLResponse:
+def _require_admin(request: Request) -> str | RedirectResponse | HTMLResponse:
+    """Return the user_id if authenticated AND admin; else a redirect/403 response."""
     result = _require_user(request)
     if isinstance(result, RedirectResponse):
         return result
-    user = result
     resolver = request.app.state.services.resolver
-    person = resolver.by_id(user)
+    person = resolver.by_id(result)
     if "admin" not in person.roles:
         return HTMLResponse(
             "<h1>403 Forbidden</h1><p>Admin access required.</p>", status_code=403
         )
+    return result
+
+
+@router.get("/admin", response_class=HTMLResponse, response_model=None)
+def admin_page(request: Request) -> _TemplateResponse | RedirectResponse | HTMLResponse:
+    result = _require_admin(request)
+    if not isinstance(result, str):
+        return result
+    user = result
 
     ctx = _user_ctx(request, user)
     orch = _get_orchestrator(request)
@@ -409,3 +418,29 @@ def admin_page(request: Request) -> _TemplateResponse | RedirectResponse | HTMLR
             "teams_policies": teams_policies,
         },
     )
+
+
+@router.post("/admin/approvals/{approval_id}/grant")
+def admin_grant_approval(request: Request, approval_id: str) -> Response:
+    result = _require_admin(request)
+    if not isinstance(result, str):
+        return result
+    try:
+        _get_orchestrator(request).grant_approval(approval_id, admin_user=result)
+    except (ApprovalNotFound, ApprovalAlreadyDecided):
+        pass  # stale page / double-submit — fall through to the current admin state
+    return RedirectResponse(url="/admin", status_code=303)
+
+
+@router.post("/admin/approvals/{approval_id}/deny")
+def admin_deny_approval(
+    request: Request, approval_id: str, reason: str = Form(default="")
+) -> Response:
+    result = _require_admin(request)
+    if not isinstance(result, str):
+        return result
+    try:
+        _get_orchestrator(request).deny_approval(approval_id, admin_user=result, reason=reason)
+    except (ApprovalNotFound, ApprovalAlreadyDecided):
+        pass
+    return RedirectResponse(url="/admin", status_code=303)

@@ -53,15 +53,22 @@ the same permission behavior the mocks enforce.
 
 ## v0.4.0 — Approval loop closed & transparency live
 
-- [ ] Approver notification (email or web inbox) for pending `ApprovalRequest`s.
-- [ ] Grant/deny actions; a grant materializes a **temporary scoped policy** with
-      auto-expiry; deny records the reason.
+- [x] **Grant/deny actions** (2026-08-14): `POST /admin/approvals/{id}/grant`/`/deny` from
+      `/admin`. Granting materializes a **temporary scoped policy** with auto-expiry
+      (`GRANT_DURATION_DAYS`, currently 14) scoped to exactly the original request; denying
+      records the reason. Both are audited. Required first extending the policy store to
+      support multiple policies per person — see DECISIONS D20.
+- [ ] Approver notification (email or web inbox) for pending `ApprovalRequest`s — an admin
+      still has to know to check `/admin`.
 - [ ] **Transparency-to-target** goes live: the target is notified when their delegated data
       is read (who/what/when/why) + a personal access-history page.
-- [ ] Admin actions: revoke a policy, see sensitive-access alerts.
+- [ ] Admin actions: revoke a granted policy (the storage method exists —
+      `SqlitePolicyStore.delete_mailbox`/`delete_teams` — no UI yet), see sensitive-access
+      alerts.
 
 **Definition of done:** Lucy's blocked search can become an approved, expiring, audited
-access without an admin editing JSON.
+access without an admin editing JSON. *(Core loop done; notification/transparency/revoke-UI
+remain.)*
 
 ## v0.5.0 — Microsoft side & the Teams bot
 

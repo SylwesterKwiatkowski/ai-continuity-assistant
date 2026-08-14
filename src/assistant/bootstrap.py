@@ -93,6 +93,8 @@ def build_app_services(
         summarizer=StubSummarizer(),
         audit=audit,
         approvals=approvals,
+        policy_store=policy_store,
+        clock=clock,
     )
 
     session_manager = SessionManager(settings.session_secret, settings.session_ttl_hours)

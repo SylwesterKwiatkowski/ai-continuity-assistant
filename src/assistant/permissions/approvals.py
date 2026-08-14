@@ -7,6 +7,19 @@ from typing import Protocol, runtime_checkable
 from assistant.permissions.policies import ApprovalRequest
 
 
+class ApprovalNotFound(Exception):
+    def __init__(self, approval_id: str) -> None:
+        super().__init__(f"No approval request with id {approval_id!r}")
+        self.approval_id = approval_id
+
+
+class ApprovalAlreadyDecided(Exception):
+    def __init__(self, approval_id: str, status: str) -> None:
+        super().__init__(f"Approval {approval_id!r} was already decided (status={status!r})")
+        self.approval_id = approval_id
+        self.status = status
+
+
 @runtime_checkable
 class ApprovalRepository(Protocol):
     """Storage abstraction for ApprovalRequest objects."""

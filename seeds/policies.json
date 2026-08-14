@@ -1,6 +1,7 @@
 {
   "mailbox": [
     {
+      "id": "seed-mailbox-anna-mark",
       "mailbox_owner": "anna",
       "allowed_requesters": ["mark"],
       "scope": {
@@ -17,6 +18,7 @@
   ],
   "teams": [
     {
+      "id": "seed-teams-anna-mark",
       "target_user": "anna",
       "allowed_requesters": ["mark"],
       "allowed_channels": ["ClientCo Delivery", "API Integration"],

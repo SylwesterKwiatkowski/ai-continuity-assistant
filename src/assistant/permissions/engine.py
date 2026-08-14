@@ -90,6 +90,16 @@ class PermissionEngine:
             clock=clock,
         )
 
+    # ------------------------------------------------------------------ live policy grants
+
+    def add_mailbox_policy(self, policy: MailboxAccessPolicy) -> None:
+        """Make a newly granted mailbox policy effective immediately (no restart needed)."""
+        self._mailbox_policies.append(policy)
+
+    def add_teams_policy(self, policy: TeamsAccessPolicy) -> None:
+        """Make a newly granted Teams policy effective immediately (no restart needed)."""
+        self._teams_policies.append(policy)
+
     # ------------------------------------------------------------------ public API
 
     def check(self, req: PermissionRequest) -> PermissionDecision:
@@ -170,25 +180,35 @@ class PermissionEngine:
     def _check_delegated_sensitive_read(self, req: PermissionRequest) -> PermissionDecision:
         assert req.target_user is not None  # DELEGATED tier guarantees this
         if req.system == System.GMAIL:
-            policy = self._find_mailbox_policy(req.target_user)
-            return self._evaluate_mailbox(req, policy)
+            policies = self._find_mailbox_policies(req.target_user)
+            return self._evaluate_mailbox(req, policies)
         # Teams
-        policy_t = self._find_teams_policy(req.target_user)
-        return self._evaluate_teams(req, policy_t)
+        teams_policies = self._find_teams_policies(req.target_user)
+        return self._evaluate_teams(req, teams_policies)
 
     # -- Gmail --
 
-    def _find_mailbox_policy(self, target_user: str) -> MailboxAccessPolicy | None:
-        for p in self._mailbox_policies:
-            if p.mailbox_owner == target_user:
-                return p
-        return None
+    def _find_mailbox_policies(self, target_user: str) -> list[MailboxAccessPolicy]:
+        return [p for p in self._mailbox_policies if p.mailbox_owner == target_user]
 
     def _evaluate_mailbox(
-        self, req: PermissionRequest, policy: MailboxAccessPolicy | None
+        self, req: PermissionRequest, policies: list[MailboxAccessPolicy]
     ) -> PermissionDecision:
-        if policy is None:
+        """Several policies may cover the same owner (standing + one-off grants) — allow if
+        any one of them authorizes the request; otherwise report the last denial reason."""
+        if not policies:
             return self._deny_delegated(req, "no mailbox access policy exists for this target")
+        decision = None
+        for policy in policies:
+            decision = self._evaluate_one_mailbox_policy(req, policy)
+            if decision.allowed:
+                return decision
+        assert decision is not None
+        return decision
+
+    def _evaluate_one_mailbox_policy(
+        self, req: PermissionRequest, policy: MailboxAccessPolicy
+    ) -> PermissionDecision:
         if req.active_user not in policy.allowed_requesters:
             return self._deny_delegated(req, "requester is not an allowed requester")
         if req.action not in {a.value for a in policy.allowed_actions}:
@@ -212,17 +232,26 @@ class PermissionEngine:
 
     # -- Teams --
 
-    def _find_teams_policy(self, target_user: str) -> TeamsAccessPolicy | None:
-        for p in self._teams_policies:
-            if p.target_user == target_user:
-                return p
-        return None
+    def _find_teams_policies(self, target_user: str) -> list[TeamsAccessPolicy]:
+        return [p for p in self._teams_policies if p.target_user == target_user]
 
     def _evaluate_teams(
-        self, req: PermissionRequest, policy: TeamsAccessPolicy | None
+        self, req: PermissionRequest, policies: list[TeamsAccessPolicy]
     ) -> PermissionDecision:
-        if policy is None:
+        """Same any-one-of-them-authorizes rule as mailbox policies — see its docstring."""
+        if not policies:
             return self._deny_delegated(req, "no Teams access policy exists for this target")
+        decision = None
+        for policy in policies:
+            decision = self._evaluate_one_teams_policy(req, policy)
+            if decision.allowed:
+                return decision
+        assert decision is not None
+        return decision
+
+    def _evaluate_one_teams_policy(
+        self, req: PermissionRequest, policy: TeamsAccessPolicy
+    ) -> PermissionDecision:
         if req.active_user not in policy.allowed_requesters:
             return self._deny_delegated(req, "requester is not an allowed requester")
         if req.action not in {a.value for a in policy.allowed_actions}:

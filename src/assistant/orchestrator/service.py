@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from typing import cast
 
 from assistant.audit.log import AuditLog
@@ -33,17 +33,45 @@ from assistant.identity.connections import ConnectionRegistry
 from assistant.identity.errors import ConnectionNotFound
 from assistant.identity.resolver import IdentityResolver
 from assistant.orchestrator.responses import AssistantResponse
-from assistant.permissions.approvals import ApprovalRepository, InMemoryApprovalRepository
+from assistant.permissions.approvals import (
+    ApprovalAlreadyDecided,
+    ApprovalNotFound,
+    ApprovalRepository,
+    InMemoryApprovalRepository,
+)
 from assistant.permissions.engine import PermissionEngine
 from assistant.permissions.policies import (
+    ApprovalRequest,
+    MailboxAccessPolicy,
+    MailboxScope,
     PermissionDecision,
     PermissionRequest,
+    PolicyStore,
     RequestedScope,
+    TeamsAccessPolicy,
 )
 from assistant.summarizer.base import Finding, Summarizer
 from assistant.summarizer.stub import StubSummarizer
 
 WRITE_NOTE = "No action taken as the target. All write actions executed as the active_user."
+
+# How long a manually-approved one-off grant lasts before it needs re-approving. Kept as a
+# module constant rather than configurable — this is a stopgap until v0.4's full "temporary
+# scoped policy" design is revisited (DECISIONS.md D20).
+GRANT_DURATION_DAYS = 14
+
+_GRANTED_GMAIL_ACTIONS = [
+    GmailAction.SEARCH_METADATA,
+    GmailAction.READ_THREAD,
+    GmailAction.SUMMARIZE,
+    GmailAction.RETRIEVE_ATTACHMENT,
+]
+_GRANTED_TEAMS_ACTIONS = [
+    TeamsAction.SEARCH_MESSAGES,
+    TeamsAction.READ_THREAD,
+    TeamsAction.SUMMARIZE,
+    TeamsAction.RETRIEVE_FILE,
+]
 
 
 @dataclass
@@ -74,6 +102,8 @@ class Orchestrator:
         summarizer: Summarizer,
         audit: AuditLog,
         approvals: ApprovalRepository | None = None,
+        policy_store: PolicyStore | None = None,
+        clock: Callable[[], date] = date.today,
     ) -> None:
         self._resolver = resolver
         self._registry = registry
@@ -82,6 +112,8 @@ class Orchestrator:
         self._summarizer = summarizer
         self._audit = audit
         self._approvals: ApprovalRepository = approvals or InMemoryApprovalRepository()
+        self._policy_store = policy_store
+        self._clock = clock
 
     @property
     def approvals(self) -> ApprovalRepository:
@@ -525,6 +557,99 @@ class Orchestrator:
             approval_id=approval_id,
         )
 
+    # ------------------------------------------------------------------ approval decisions
+
+    def _get_pending_approval(self, approval_id: str) -> ApprovalRequest:
+        approval = self._approvals.get(approval_id)
+        if approval is None:
+            raise ApprovalNotFound(approval_id)
+        if approval.status != "pending":
+            raise ApprovalAlreadyDecided(approval_id, approval.status)
+        return approval
+
+    def grant_approval(self, approval_id: str, admin_user: str) -> ApprovalRequest:
+        """Approve a pending request: materialize a scoped, auto-expiring policy per
+        requested system, make it effective immediately, and mark the request granted.
+
+        This is an admin decision, not a data access — it does not go through the
+        Permission Engine itself. Every system granted still emits its own audit event
+        (an admin action, not a read of anyone's data) so the decision is traceable in
+        /admin like everything else (SECURITY_MODEL.md).
+        """
+        approval = self._get_pending_approval(approval_id)
+        if approval.target_user is None:
+            raise ValueError(f"approval {approval_id!r} has no target_user to grant access to")
+
+        expiry = self._clock() + timedelta(days=GRANT_DURATION_DAYS)
+        granted_policy_ids: list[str] = []
+        for system in approval.systems_requested:
+            if system == System.GMAIL:
+                mailbox_policy = MailboxAccessPolicy(
+                    mailbox_owner=approval.target_user,
+                    allowed_requesters=[approval.requester],
+                    scope=MailboxScope(
+                        type="project_or_client",
+                        client=approval.scope.client,
+                        domain=approval.scope.domain,
+                        project=approval.scope.project,
+                    ),
+                    allowed_actions=_GRANTED_GMAIL_ACTIONS,
+                    expiry_date=expiry,
+                )
+                self._engine.add_mailbox_policy(mailbox_policy)
+                if self._policy_store is not None:
+                    self._policy_store.save_mailbox([mailbox_policy])
+                granted_policy_ids.append(mailbox_policy.id)
+            elif system == System.TEAMS:
+                teams_policy = TeamsAccessPolicy(
+                    target_user=approval.target_user,
+                    allowed_requesters=[approval.requester],
+                    allowed_channels=approval.scope.channels,
+                    allowed_projects=[approval.scope.project] if approval.scope.project else [],
+                    allowed_clients=[approval.scope.client] if approval.scope.client else [],
+                    allowed_keywords=approval.scope.keywords,
+                    allowed_participants=approval.scope.participants,
+                    date_range=approval.scope.date_range,
+                    allowed_actions=_GRANTED_TEAMS_ACTIONS,
+                    expiry_date=expiry,
+                )
+                self._engine.add_teams_policy(teams_policy)
+                if self._policy_store is not None:
+                    self._policy_store.save_teams([teams_policy])
+                granted_policy_ids.append(teams_policy.id)
+            self._audit.record_write(
+                active_user=admin_user, system=system, action="grant_delegated_access",
+                target_user=approval.target_user, resource_ids=granted_policy_ids[-1:],
+                resource_type="policy", approval_id=approval.id, result_status="granted",
+                reason=f"approved by {admin_user}, expires {expiry.isoformat()}",
+            )
+
+        decided = approval.model_copy(
+            update={"status": "granted", "approver": admin_user, "decided_at": self._clock()}
+        )
+        self._approvals.add(decided)
+        return decided
+
+    def deny_approval(self, approval_id: str, admin_user: str, reason: str = "") -> ApprovalRequest:
+        """Deny a pending request. No policy is created; the decision itself is audited."""
+        approval = self._get_pending_approval(approval_id)
+        for system in approval.systems_requested:
+            self._audit.record_write(
+                active_user=admin_user, system=system, action="deny_delegated_access",
+                target_user=approval.target_user, approval_id=approval.id,
+                result_status="denied", reason=reason or f"denied by {admin_user}",
+            )
+        decided = approval.model_copy(
+            update={
+                "status": "denied",
+                "approver": admin_user,
+                "decided_at": self._clock(),
+                "reason": reason or approval.reason,
+            }
+        )
+        self._approvals.add(decided)
+        return decided
+
 
 def build_default_orchestrator(clock: Callable[[], date] = date.today) -> Orchestrator:
     resolver = IdentityResolver.from_seed()
@@ -541,4 +666,5 @@ def build_default_orchestrator(clock: Callable[[], date] = date.today) -> Orches
         connectors=connectors,
         summarizer=StubSummarizer(),
         audit=AuditLog(),
+        clock=clock,
     )

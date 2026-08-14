@@ -78,7 +78,12 @@ class SqliteConnectionStore:
 
 
 class SqlitePolicyStore:
-    """Policy store backed by SQLite (kind='mailbox'/'teams', key=owner/target_user)."""
+    """Policy store backed by SQLite (kind='mailbox'/'teams', key=policy id).
+
+    Keyed by the policy's own `id`, not the owner/target name — several policies can cover
+    the same person (e.g. a standing continuity policy plus one-off grants from the
+    approval flow, DECISIONS.md D20).
+    """
 
     def __init__(self, db: Database) -> None:
         self._db = db
@@ -87,14 +92,14 @@ class SqlitePolicyStore:
         for p in policies:
             self._db.execute(
                 "INSERT OR REPLACE INTO policies (kind, key, data) VALUES (?, ?, ?)",
-                ("mailbox", p.mailbox_owner, p.model_dump_json()),
+                ("mailbox", p.id, p.model_dump_json()),
             )
 
     def save_teams(self, policies: list[TeamsAccessPolicy]) -> None:
         for p in policies:
             self._db.execute(
                 "INSERT OR REPLACE INTO policies (kind, key, data) VALUES (?, ?, ?)",
-                ("teams", p.target_user, p.model_dump_json()),
+                ("teams", p.id, p.model_dump_json()),
             )
 
     def load_mailbox(self) -> list[MailboxAccessPolicy]:
@@ -104,3 +109,9 @@ class SqlitePolicyStore:
     def load_teams(self) -> list[TeamsAccessPolicy]:
         rows = self._db.query("SELECT data FROM policies WHERE kind = 'teams'")
         return [TeamsAccessPolicy.model_validate_json(row[0]) for row in rows]  # type: ignore[arg-type]
+
+    def delete_mailbox(self, policy_id: str) -> None:
+        self._db.execute("DELETE FROM policies WHERE kind = 'mailbox' AND key = ?", (policy_id,))
+
+    def delete_teams(self, policy_id: str) -> None:
+        self._db.execute("DELETE FROM policies WHERE kind = 'teams' AND key = ?", (policy_id,))

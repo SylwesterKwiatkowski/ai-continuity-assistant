@@ -1,6 +1,11 @@
 """Permissions layer — the default-deny Permission & Policy Engine (spec §7)."""
 
-from assistant.permissions.approvals import ApprovalRepository, InMemoryApprovalRepository
+from assistant.permissions.approvals import (
+    ApprovalAlreadyDecided,
+    ApprovalNotFound,
+    ApprovalRepository,
+    InMemoryApprovalRepository,
+)
 from assistant.permissions.engine import AbsenceProvider, PermissionEngine
 from assistant.permissions.policies import (
     ApprovalRequest,
@@ -9,12 +14,15 @@ from assistant.permissions.policies import (
     MailboxScope,
     PermissionDecision,
     PermissionRequest,
+    PolicyStore,
     RequestedScope,
     TeamsAccessPolicy,
 )
 
 __all__ = [
     "AbsenceProvider",
+    "ApprovalAlreadyDecided",
+    "ApprovalNotFound",
     "ApprovalRepository",
     "ApprovalRequest",
     "ApprovalType",
@@ -24,6 +32,7 @@ __all__ = [
     "PermissionDecision",
     "PermissionEngine",
     "PermissionRequest",
+    "PolicyStore",
     "RequestedScope",
     "TeamsAccessPolicy",
 ]

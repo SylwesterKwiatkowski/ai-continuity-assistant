@@ -9,8 +9,10 @@ A PermissionRequest describes one operation; the PermissionEngine returns a Perm
 
 from __future__ import annotations
 
+import uuid
 from datetime import date
 from enum import StrEnum
+from typing import Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
 
@@ -39,8 +41,15 @@ class MailboxScope(BaseModel):
 
 
 class MailboxAccessPolicy(BaseModel):
-    """Delegated read policy over one person's mailbox (spec §7.1)."""
+    """Delegated read policy over one person's mailbox (spec §7.1).
 
+    Several policies may exist for the same mailbox_owner (e.g. the standing continuity
+    policy plus one or more one-off grants) — `id` is what makes each independently
+    addressable/persistable/revocable (DECISIONS.md D20). The engine evaluates all policies
+    matching the owner and allows if any one of them does.
+    """
+
+    id: str = Field(default_factory=lambda: uuid.uuid4().hex)
     mailbox_owner: str
     allowed_requesters: list[str]
     scope: MailboxScope = Field(default_factory=MailboxScope)
@@ -51,8 +60,12 @@ class MailboxAccessPolicy(BaseModel):
 
 
 class TeamsAccessPolicy(BaseModel):
-    """Delegated read policy over one person's Teams context (spec §7.1)."""
+    """Delegated read policy over one person's Teams context (spec §7.1).
 
+    See MailboxAccessPolicy's docstring — `id` allows several policies per target_user.
+    """
+
+    id: str = Field(default_factory=lambda: uuid.uuid4().hex)
     target_user: str
     allowed_requesters: list[str]
     allowed_channels: list[str] = Field(default_factory=list)
@@ -65,6 +78,19 @@ class TeamsAccessPolicy(BaseModel):
     conditions: list[str] = Field(default_factory=list)
     expiry_date: date | None = None
     audit_required: bool = True
+
+
+@runtime_checkable
+class PolicyStore(Protocol):
+    """Persistence abstraction for policy grants (used by the approval grant/deny flow).
+
+    Deliberately minimal — the orchestrator only ever needs to persist newly granted
+    policies here; initial seed loading happens once, directly, at bootstrap.
+    """
+
+    def save_mailbox(self, policies: list[MailboxAccessPolicy]) -> None: ...
+
+    def save_teams(self, policies: list[TeamsAccessPolicy]) -> None: ...
 
 
 class ApprovalType(StrEnum):
@@ -88,7 +114,8 @@ class ApprovalRequest(BaseModel):
     scope: RequestedScope = Field(default_factory=RequestedScope)
     reason: str = ""
     expiry_date: date | None = None
-    status: str = "pending"
+    status: str = "pending"  # "pending" | "granted" | "denied"
+    decided_at: date | None = None
 
 
 class PermissionRequest(BaseModel):

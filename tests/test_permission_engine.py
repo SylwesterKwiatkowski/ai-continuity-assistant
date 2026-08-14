@@ -8,9 +8,12 @@ from assistant.domain import ActionType, GmailAction, System, TeamsAction
 from assistant.identity import IdentityResolver
 from assistant.permissions import (
     ApprovalType,
+    MailboxAccessPolicy,
+    MailboxScope,
     PermissionEngine,
     PermissionRequest,
     RequestedScope,
+    TeamsAccessPolicy,
 )
 
 FIXED_TODAY = date(2026, 8, 14)  # within the seed policies' 2026-10-31 expiry
@@ -208,3 +211,50 @@ def test_build_approval_request_targets_mailbox_owner() -> None:
     assert approval.target_user == "anna"
     assert approval.approver == "anna"  # mailbox owner
     assert approval.status == "pending"
+
+
+# --- Multiple policies per owner (DECISIONS.md D20): a new grant must not break the
+# existing standing policy, and the engine must check every policy for that owner. ---
+
+def test_added_mailbox_policy_grants_new_requester_without_breaking_existing() -> None:
+    engine = make_engine()
+    lucy_req = gmail_read_req()
+    lucy_req.active_user = "lucy"
+    assert engine.check(lucy_req).allowed is False
+    assert engine.check(gmail_read_req()).allowed is True  # mark's baseline access
+
+    engine.add_mailbox_policy(
+        MailboxAccessPolicy(
+            mailbox_owner="anna",
+            allowed_requesters=["lucy"],
+            scope=MailboxScope(client="ClientCo", project="API Integration"),
+            allowed_actions=[GmailAction.SEARCH_METADATA],
+            expiry_date=date(2026, 12, 31),
+        )
+    )
+
+    assert engine.check(lucy_req).allowed is True
+    assert engine.check(gmail_read_req()).allowed is True  # mark's access is untouched
+
+
+def test_added_teams_policy_grants_new_requester_without_breaking_existing() -> None:
+    engine = make_engine()
+    lucy_req = teams_req()
+    lucy_req.active_user = "lucy"
+    assert engine.check(lucy_req).allowed is False
+    assert engine.check(teams_req()).allowed is True  # mark's baseline access
+
+    engine.add_teams_policy(
+        TeamsAccessPolicy(
+            target_user="anna",
+            allowed_requesters=["lucy"],
+            allowed_channels=["ClientCo Delivery"],
+            allowed_projects=["API Integration"],
+            allowed_clients=["ClientCo"],
+            allowed_actions=[TeamsAction.SEARCH_MESSAGES],
+            expiry_date=date(2026, 12, 31),
+        )
+    )
+
+    assert engine.check(lucy_req).allowed is True
+    assert engine.check(teams_req()).allowed is True  # mark's access is untouched
