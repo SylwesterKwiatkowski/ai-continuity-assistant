@@ -118,7 +118,7 @@ engine, policy matching, credential resolution, audit); only the final data fetc
 
 | Persona | Role in the demo |
 |---|---|
-| **anna** | Out of office 2026-07-01→10; owns the ClientCo mailbox data; connected: Gmail, Teams, Calendar |
+| **anna** | Out of office 2026-08-10→24; owns the ClientCo mailbox data; connected: Gmail, Teams, Calendar |
 | **mark** | Anna's backup owner for **ClientCo / API Integration**; connected to all 7 systems |
 | **lucy** | Admin (can view `/admin`); has **no** delegated access — her searches get blocked |
 
@@ -128,7 +128,7 @@ thread in *ClientCo Delivery*; Jira issues CRM-241 (overdue) and API-12; a recur
 Sheets task; and her Calendar OOO window.
 
 **The delegation** (`seeds/policies.json`): Mark may read Anna's Gmail/Teams, scoped to
-ClientCo / API Integration, **only while she is out of office**, expiring 2026-07-20.
+ClientCo / API Integration, **only while she is out of office**, expiring 2026-10-31.
 
 **Things to try:** sign in as each persona; disconnect Anna's Gmail on `/connections`
 (Mark's search then honestly refuses); edit `policies.json` to remove Mark or expire the

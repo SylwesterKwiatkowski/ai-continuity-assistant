@@ -13,7 +13,7 @@ from assistant.permissions import (
     RequestedScope,
 )
 
-FIXED_TODAY = date(2026, 7, 3)  # within the seed policies' 2026-07-20 expiry
+FIXED_TODAY = date(2026, 8, 14)  # within the seed policies' 2026-10-31 expiry
 
 
 class _AbsenceStub:
@@ -88,7 +88,7 @@ def test_out_of_scope_client_denies() -> None:
 
 
 def test_expired_policy_denies() -> None:
-    decision = make_engine(today=date(2026, 7, 21)).check(gmail_read_req())
+    decision = make_engine(today=date(2026, 11, 1)).check(gmail_read_req())
     assert decision.allowed is False
     assert "expired" in decision.reason
 

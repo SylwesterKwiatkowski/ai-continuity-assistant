@@ -1,10 +1,10 @@
 """Phase-6 security acceptance gate — 12 named invariant tests (P6-01 … P6-12).
 
 Fixed dates:
-  - Anna OOO window: 2026-07-01..2026-07-10 (mock calendar)
-  - Seed policies expire: 2026-07-20
-  - INSIDE_OOO (allowed scenario): 2026-07-03
-  - AFTER_OOO ("not OOO" scenario): 2026-07-15
+  - Anna OOO window: 2026-08-10..2026-08-24 (mock calendar)
+  - Seed policies expire: 2026-10-31
+  - INSIDE_OOO (allowed scenario): 2026-08-14
+  - AFTER_OOO ("not OOO" scenario): 2026-09-05
 """
 
 from __future__ import annotations
@@ -31,8 +31,8 @@ from assistant.permissions import (
 from assistant.permissions.policies import PermissionDecision
 from assistant.summarizer.stub import StubSummarizer
 
-INSIDE_OOO = date(2026, 7, 3)   # clock inside Anna's OOO window → allowed
-AFTER_OOO = date(2026, 7, 15)   # clock after OOO → not OOO → denied
+INSIDE_OOO = date(2026, 8, 14)   # clock inside Anna's OOO window → allowed
+AFTER_OOO = date(2026, 9, 5)   # clock after OOO → not OOO → denied
 
 
 # ---------------------------------------------------------------------------

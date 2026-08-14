@@ -11,7 +11,7 @@
       },
       "allowed_actions": ["search_metadata", "read_thread", "summarize", "retrieve_attachment"],
       "conditions": ["only_when_out_of_office"],
-      "expiry_date": "2026-07-20",
+      "expiry_date": "2026-10-31",
       "audit_required": true
     }
   ],
@@ -27,7 +27,7 @@
       "date_range": "last_90_days",
       "allowed_actions": ["search_messages", "read_thread", "summarize", "retrieve_file"],
       "conditions": ["only_when_out_of_office"],
-      "expiry_date": "2026-07-20",
+      "expiry_date": "2026-10-31",
       "audit_required": true
     }
   ]

@@ -8,9 +8,9 @@ import pytest
 
 from assistant.orchestrator import Orchestrator, build_default_orchestrator
 
-# Anna's OOO window is 2026-07-01..2026-07-10; pin "today" inside it for determinism.
-INSIDE_OOO = date(2026, 7, 3)
-AFTER_OOO = date(2026, 7, 15)
+# Anna's OOO window is 2026-08-10..2026-08-24; pin "today" inside it for determinism.
+INSIDE_OOO = date(2026, 8, 14)
+AFTER_OOO = date(2026, 9, 5)
 
 
 @pytest.fixture

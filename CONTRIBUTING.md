@@ -41,7 +41,7 @@ uvicorn assistant.api.app:app --reload   # web app on http://127.0.0.1:8000
 ```
 
 The MVP runs entirely on **mock connectors** with seeded data (`seeds/`). No external
-credentials are needed. The seeded scenario: Anna is out of office 2026-07-01..07-10; Mark is
+credentials are needed. The seeded scenario: Anna is out of office 2026-08-10..08-24; Mark is
 her backup owner for ClientCo / API Integration; Lucy has no delegated access.
 
 ## Branch model

@@ -1,7 +1,7 @@
 """Web layer tests (Part C).
 
 Uses FastAPI TestClient against create_app() with a per-test tmp SQLite database and a
-pinned services clock (2026-07-03 — inside Anna's OOO window, before policy expiry) so
+pinned services clock (2026-08-14 — inside Anna's OOO window, before policy expiry) so
 all delegated flows work deterministically regardless of real today.
 """
 
@@ -29,7 +29,7 @@ def app(tmp_path: Path) -> FastAPI:
     settings = Settings(database_url=db_url)
     application = create_app(settings)
     # Overwrite services with a pinned clock so tests don't depend on real date.
-    services: AppServices = build_app_services(settings, clock=lambda: date(2026, 7, 3))
+    services: AppServices = build_app_services(settings, clock=lambda: date(2026, 8, 14))
     application.state.services = services
     application.state.orchestrator = services.orchestrator
     return application

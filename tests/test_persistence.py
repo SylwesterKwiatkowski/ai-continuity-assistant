@@ -17,7 +17,7 @@ from assistant.storage import EncryptedTokenStore, database_from_url
 def _make_services(
     tmp_path: Path,
     db_name: str = "a.db",
-    clock: Callable[[], date] = lambda: date(2026, 7, 3),
+    clock: Callable[[], date] = lambda: date(2026, 8, 14),
 ) -> AppServices:
     db_url = f"sqlite:///{tmp_path}/{db_name}"
     settings = Settings(database_url=db_url)
@@ -48,12 +48,12 @@ def test_audit_survives_restart(tmp_path: Path) -> None:
 
 def test_approvals_survive_restart(tmp_path: Path) -> None:
     # Use a date after Anna's OOO window so access is blocked and an approval is requested
-    services = _make_services(tmp_path, clock=lambda: date(2026, 7, 15))
+    services = _make_services(tmp_path, clock=lambda: date(2026, 9, 5))
     services.orchestrator.search_email(
         "mark", "Anna", client="ClientCo", project="API Integration"
     )
 
-    services2 = _make_services(tmp_path, clock=lambda: date(2026, 7, 15))
+    services2 = _make_services(tmp_path, clock=lambda: date(2026, 9, 5))
     pending = services2.orchestrator.approvals.pending()
     assert pending, "expected pending approvals after restart"
 

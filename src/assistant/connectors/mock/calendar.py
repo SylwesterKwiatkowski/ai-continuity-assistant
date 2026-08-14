@@ -19,7 +19,7 @@ from assistant.domain.enums import ActionType, System
 
 # Seeded out-of-office window for Anna (spec flagship: she is on vacation).
 _OOO: dict[str, tuple[date, date]] = {
-    "anna": (date(2026, 7, 1), date(2026, 7, 10)),
+    "anna": (date(2026, 8, 10), date(2026, 8, 24)),
 }
 
 

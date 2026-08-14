@@ -32,9 +32,9 @@ required security behaviors one-to-one:
 | `test_p6_12` | Summaries never expose raw sensitive content (sentinel strings) |
 
 ### Test-design rules
-- **Inject clocks.** The seeded scenario is date-anchored (Anna OOO 2026-07-01..07-10,
-  policies expire 2026-07-20). Always pass `clock=lambda: date(2026, 7, 3)` (inside OOO) or
-  `date(2026, 7, 15)` (back in office) — never rely on the real date.
+- **Inject clocks.** The seeded scenario is date-anchored (Anna OOO 2026-08-10..08-24,
+  policies expire 2026-10-31). Always pass `clock=lambda: date(2026, 8, 14)` (inside OOO) or
+  `date(2026, 9, 5)` (back in office) — never rely on the real date.
 - **Assert invariants, not wording.** Check `allowed` flags, exception types, audit fields,
   and sentinel absence — not exact summary strings, which may change.
 - **Sentinels:** mock data plants `SENTINEL_FULL_BODY_DO_NOT_LEAK` and `555-0100` inside the

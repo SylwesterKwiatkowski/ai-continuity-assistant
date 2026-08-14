@@ -48,14 +48,14 @@ def test_teams_search_finds_annas_thread() -> None:
 
 def test_calendar_reports_anna_out_of_office() -> None:
     cal = MockCalendarConnector()
-    assert cal.is_out_of_office("anna", on=date(2026, 7, 3)) is True
-    assert cal.is_out_of_office("anna", on=date(2026, 8, 1)) is False
-    assert cal.is_out_of_office("mark", on=date(2026, 7, 3)) is False
+    assert cal.is_out_of_office("anna", on=date(2026, 8, 14)) is True
+    assert cal.is_out_of_office("anna", on=date(2026, 9, 1)) is False
+    assert cal.is_out_of_office("mark", on=date(2026, 8, 14)) is False
 
 
 def test_get_blockers_with_today_overdue() -> None:
     ctx = _ctx(System.JIRA, "get_blockers", ActionType.READ, "mark")
-    tasks = MockJiraConnector().get_blockers(ctx, today=date(2026, 7, 3))
+    tasks = MockJiraConnector().get_blockers(ctx, today=date(2026, 8, 14))
     assert [t.id for t in tasks] == ["CRM-241"]
 
 

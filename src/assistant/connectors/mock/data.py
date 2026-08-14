@@ -110,7 +110,7 @@ def anna_jira_tasks() -> list[Task]:
             title="Migrate legacy CRM contacts",
             source=System.JIRA,
             assignee="anna",
-            due_date=date(2026, 6, 30),  # overdue relative to 2026-07-03
+            due_date=date(2026, 8, 5),  # overdue relative to 2026-08-14
             status="In Progress",
             project="CRM Migration",
             url="https://acme.atlassian.net/browse/CRM-241",
@@ -120,7 +120,7 @@ def anna_jira_tasks() -> list[Task]:
             title="Implement OAuth 2.0 token exchange",
             source=System.JIRA,
             assignee="anna",
-            due_date=date(2026, 7, 5),
+            due_date=date(2026, 8, 20),
             status="To Do",
             project="API Integration",
             client="ClientCo",
@@ -140,7 +140,7 @@ def anna_recurring_tasks() -> list[Task]:
             title="Weekly data validation",
             source=System.SHEETS,
             assignee="anna",
-            due_date=date(2026, 7, 3),  # Friday
+            due_date=date(2026, 8, 14),  # Friday
             status="Pending",
             project="CRM Migration",
             url="https://docs.google.com/spreadsheets/d/tracker#gid=0&row=7",
@@ -157,6 +157,6 @@ def clientco_project() -> Project:
         client="ClientCo",
         owner="anna",
         status="Active",
-        deadline=date(2026, 7, 5),
+        deadline=date(2026, 8, 20),
         source_links=["https://acme.atlassian.net/browse/API-12"],
     )
