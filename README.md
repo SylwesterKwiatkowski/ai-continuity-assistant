@@ -89,7 +89,8 @@ See `.env.example` for the authoritative list. Expected keys (MVP):
 | `APP_ENV`               | `local` / `dev` / `prod`                            |
 | `DATABASE_URL`          | SQLite URL (`sqlite:///./assistant.sqlite`)         |
 | `TOKEN_STORE_KEY`       | key for the encrypted (Fernet) per-user token store |
-| `AUTH_MODE`             | `dev` (demo user picker) / `oauth` (provider TBD)   |
+| `AUTH_MODE`             | `dev` (demo user picker, local only) / `oauth` (Google sign-in) |
+| `GOOGLE_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` | Google OAuth login; blank locally, set on deployed hosts |
 | `SESSION_SECRET`        | HMAC key for signed session tokens — secret in prod |
 | `SESSION_TTL_HOURS`     | session lifetime (default 8)                        |
 | `LLM_API_KEY`           | summarizer key (unused while stub is active)        |

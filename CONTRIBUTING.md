@@ -24,9 +24,14 @@ Start by reading, in this order:
 1. [`README.md`](README.md) — what it does, how to run it
 2. [`docs/SECURITY_MODEL.md`](docs/SECURITY_MODEL.md) — **the contract your code must obey**
 3. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — components and data flow
-4. [`docs/DECISIONS.md`](docs/DECISIONS.md) — why things are the way they are (D1–D16)
-5. [`docs/ROADMAP.md`](docs/ROADMAP.md) — what to build next
-6. [`docs/TESTING.md`](docs/TESTING.md) — how to verify your work
+4. [`docs/DECISIONS.md`](docs/DECISIONS.md) — why things are the way they are (D1–D20)
+5. [`docs/ROADMAP.md`](docs/ROADMAP.md) — what to build next, and why in that order
+6. [`docs/DELIVERY_PLAN.md`](docs/DELIVERY_PLAN.md) — **branch-by-branch order, dependencies and
+   the risk register; read this before writing code for v0.2.1–v0.4.1**
+7. [`docs/TESTING.md`](docs/TESTING.md) — how to verify your work
+
+Working with an AI coding agent? [`CLAUDE.md`](CLAUDE.md) at the repo root is its entry point —
+it carries the non-negotiable rules below plus pointers to the documents above.
 
 ## Setup
 
