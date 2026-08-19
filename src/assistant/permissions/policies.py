@@ -103,7 +103,14 @@ class ApprovalType(StrEnum):
 
 
 class ApprovalRequest(BaseModel):
-    """A request for approval when permission is absent/ambiguous (spec §16)."""
+    """A request for approval when permission is absent/ambiguous (spec §16).
+
+    `approver` is the person the engine *nominates* to decide (set once, at creation, by
+    `PermissionEngine._suggest_approver` — e.g. the mailbox owner). `decided_by` is who
+    *actually* decided, filled in only once the request is granted/denied. They differ
+    exactly when an admin overrides the named approver (DECISIONS.md D21) — keeping both
+    means the log shows who was supposed to decide as well as who actually did.
+    """
 
     id: str
     requester: str
@@ -116,6 +123,7 @@ class ApprovalRequest(BaseModel):
     expiry_date: date | None = None
     status: str = "pending"  # "pending" | "granted" | "denied"
     decided_at: date | None = None
+    decided_by: str | None = None
 
 
 class PermissionRequest(BaseModel):

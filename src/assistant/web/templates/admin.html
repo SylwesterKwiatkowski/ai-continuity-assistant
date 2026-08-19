@@ -48,6 +48,7 @@
           <th>Requester</th>
           <th>Target</th>
           <th>Systems</th>
+          <th>Nominated approver</th>
           <th>Status</th>
           <th>Decision</th>
         </tr>
@@ -59,18 +60,21 @@
           <td>{{ ap.requester }}</td>
           <td>{{ ap.target_user or '—' }}</td>
           <td>{{ ap.systems_requested | join(', ') }}</td>
+          <td>{{ ap.approver or '—' }}</td>
           <td>{{ ap.status }}</td>
           <td>
             <form method="post" action="/admin/approvals/{{ ap.id }}/grant" style="display:inline;">
+              <input type="hidden" name="redirect_to" value="/admin">
               <button type="submit">Grant</button>
             </form>
             <form method="post" action="/admin/approvals/{{ ap.id }}/deny" style="display:inline;">
+              <input type="hidden" name="redirect_to" value="/admin">
               <button type="submit">Deny</button>
             </form>
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="6" style="color:#868e96; text-align:center;">No pending approvals.</td></tr>
+        <tr><td colspan="7" style="color:#868e96; text-align:center;">No pending approvals.</td></tr>
         {% endfor %}
       </tbody>
     </table>

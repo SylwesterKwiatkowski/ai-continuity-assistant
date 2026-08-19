@@ -71,19 +71,27 @@ def test_search_email_blocked_out_of_scope(orch: Orchestrator) -> None:
     assert resp.allowed is False
 
 
-# --- grant/deny (v0.4): admin decisions on a blocked delegated read ---
+# --- grant/deny (v0.4 / D20 / D21): decisions on a blocked delegated read ---
 
-def test_grant_approval_allows_the_previously_blocked_read() -> None:
-    blocked_orch = build_default_orchestrator(clock=lambda: AFTER_OOO)  # Anna back in office
+
+def _blocked_mark_approval_id(blocked_orch: Orchestrator) -> str:
     blocked = blocked_orch.search_email(
         "mark", "Anna", client="ClientCo", project="API Integration"
     )
     approval_id = blocked.approval_id
     assert approval_id is not None
+    return approval_id
 
-    decided = blocked_orch.grant_approval(approval_id, admin_user="lucy")
+
+def test_grant_approval_allows_the_previously_blocked_read() -> None:
+    blocked_orch = build_default_orchestrator(clock=lambda: AFTER_OOO)  # Anna back in office
+    approval_id = _blocked_mark_approval_id(blocked_orch)
+
+    # Anna is the nominated approver for her own mailbox — deciding her own request.
+    decided = blocked_orch.grant_approval(approval_id, decided_by="anna")
     assert decided.status == "granted"
-    assert decided.approver == "lucy"
+    assert decided.approver == "anna"  # nomination is untouched
+    assert decided.decided_by == "anna"  # she decided it herself, no override
     assert decided.decided_at == AFTER_OOO
 
     # The identical request now succeeds — no restart needed.
@@ -95,12 +103,8 @@ def test_grant_approval_allows_the_previously_blocked_read() -> None:
 
 def test_grant_approval_is_scoped_to_the_requester_only() -> None:
     blocked_orch = build_default_orchestrator(clock=lambda: AFTER_OOO)
-    blocked = blocked_orch.search_email(
-        "mark", "Anna", client="ClientCo", project="API Integration"
-    )
-    approval_id = blocked.approval_id
-    assert approval_id is not None
-    blocked_orch.grant_approval(approval_id, admin_user="lucy")
+    approval_id = _blocked_mark_approval_id(blocked_orch)
+    blocked_orch.grant_approval(approval_id, decided_by="anna")
 
     # Lucy herself never asked for access and wasn't granted any — still blocked.
     still_blocked = blocked_orch.search_email(
@@ -111,31 +115,42 @@ def test_grant_approval_is_scoped_to_the_requester_only() -> None:
 
 def test_grant_approval_emits_an_auditable_decision() -> None:
     blocked_orch = build_default_orchestrator(clock=lambda: AFTER_OOO)
-    blocked = blocked_orch.search_email(
-        "mark", "Anna", client="ClientCo", project="API Integration"
-    )
-    approval_id = blocked.approval_id
-    assert approval_id is not None
-    blocked_orch.grant_approval(approval_id, admin_user="lucy")
+    approval_id = _blocked_mark_approval_id(blocked_orch)
+    blocked_orch.grant_approval(approval_id, decided_by="anna")
+
+    grant_events = [e for e in blocked_orch.audit.events if e.action == "grant_delegated_access"]
+    assert grant_events
+    assert grant_events[0].active_user == "anna"
+    assert grant_events[0].target_user == "anna"
+    assert grant_events[0].approval_id == approval_id
+    assert "OVERRIDE" not in (grant_events[0].reason or "")
+
+
+def test_admin_grant_is_recorded_as_an_override() -> None:
+    """D21: an admin deciding someone else's nominated request is a distinguishable override."""
+    blocked_orch = build_default_orchestrator(clock=lambda: AFTER_OOO)
+    approval_id = _blocked_mark_approval_id(blocked_orch)
+
+    # Lucy is admin but NOT the nominated approver (anna is) — this is an override.
+    decided = blocked_orch.grant_approval(approval_id, decided_by="lucy")
+    assert decided.approver == "anna"  # nomination is preserved
+    assert decided.decided_by == "lucy"  # lucy is who actually decided
 
     grant_events = [e for e in blocked_orch.audit.events if e.action == "grant_delegated_access"]
     assert grant_events
     assert grant_events[0].active_user == "lucy"
-    assert grant_events[0].target_user == "anna"
-    assert grant_events[0].approval_id == approval_id
+    assert "OVERRIDE" in (grant_events[0].reason or "")
+    assert "anna" in (grant_events[0].reason or "")
 
 
 def test_deny_approval_leaves_the_read_blocked() -> None:
     blocked_orch = build_default_orchestrator(clock=lambda: AFTER_OOO)
-    blocked = blocked_orch.search_email(
-        "mark", "Anna", client="ClientCo", project="API Integration"
-    )
-    approval_id = blocked.approval_id
-    assert approval_id is not None
+    approval_id = _blocked_mark_approval_id(blocked_orch)
 
-    decided = blocked_orch.deny_approval(approval_id, admin_user="lucy", reason="not now")
+    decided = blocked_orch.deny_approval(approval_id, decided_by="anna", reason="not now")
     assert decided.status == "denied"
     assert decided.reason == "not now"
+    assert decided.decided_by == "anna"
 
     resp = blocked_orch.search_email(
         "mark", "Anna", client="ClientCo", project="API Integration"
@@ -146,22 +161,18 @@ def test_deny_approval_leaves_the_read_blocked() -> None:
 def test_grant_approval_unknown_id_raises_not_found() -> None:
     blocked_orch = build_default_orchestrator(clock=lambda: AFTER_OOO)
     with pytest.raises(ApprovalNotFound):
-        blocked_orch.grant_approval("does-not-exist", admin_user="lucy")
+        blocked_orch.grant_approval("does-not-exist", decided_by="anna")
 
 
 def test_granting_an_already_decided_approval_raises() -> None:
     blocked_orch = build_default_orchestrator(clock=lambda: AFTER_OOO)
-    blocked = blocked_orch.search_email(
-        "mark", "Anna", client="ClientCo", project="API Integration"
-    )
-    approval_id = blocked.approval_id
-    assert approval_id is not None
-    blocked_orch.grant_approval(approval_id, admin_user="lucy")
+    approval_id = _blocked_mark_approval_id(blocked_orch)
+    blocked_orch.grant_approval(approval_id, decided_by="anna")
 
     with pytest.raises(ApprovalAlreadyDecided):
-        blocked_orch.grant_approval(approval_id, admin_user="lucy")
+        blocked_orch.grant_approval(approval_id, decided_by="anna")
     with pytest.raises(ApprovalAlreadyDecided):
-        blocked_orch.deny_approval(approval_id, admin_user="lucy")
+        blocked_orch.deny_approval(approval_id, decided_by="anna")
 
 
 # --- delegated Teams search ---

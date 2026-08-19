@@ -105,13 +105,12 @@ the same permission behavior the mocks enforce.
       (`GRANT_DURATION_DAYS`, currently 14) scoped to exactly the original request; denying
       records the reason. Both are audited. Required first extending the policy store to
       support multiple policies per person — see DECISIONS D20.
-- [ ] **The named approver can decide — not only an admin.** The engine already routes Gmail
-      denials to the mailbox owner (`engine._suggest_approver` → `ApprovalType.MAILBOX_OWNER`)
-      and records them as the `ApprovalRequest.approver`, but `POST /admin/approvals/{id}/grant`
-      is `_require_admin`-gated. The system therefore nominates Anna as approver and then lets an
-      admin decide in her place. Let the named approver act on requests over their own data;
-      keep admin as an explicit, audited override. Smallest change in this release and the one
-      that makes the security model honest about consent.
+- [x] **The named approver can decide — not only an admin** (2026-08-19): the nominated
+      approver (`ApprovalRequest.approver`) can now grant/deny requests over their own data
+      at the same `/admin/approvals/{id}/grant`/`/deny` routes, surfaced to them at the new
+      `GET /approvals/mine` (not admin-gated). Admin remains a decision path, now recorded
+      as an explicit, audited override (`ApprovalRequest.decided_by` vs `.approver`). See
+      DECISIONS D21.
 - [ ] **Notification channel** (SMTP or in-app inbox) — *there is none in the codebase today*.
       Pick one here: it is the hard prerequisite for approver notification, for
       transparency-to-target, and for all of v0.4.1. An approval loop whose approver never
@@ -131,7 +130,8 @@ the same permission behavior the mocks enforce.
 
 **Definition of done:** Lucy's blocked search becomes an approved, expiring, audited access
 **decided by Anna, who was told it was waiting** — no admin, no JSON edit — and Anna can revoke
-it before it expires. *(Core grant/deny loop done; everything else above remains.)*
+it before it expires. *(Grant/deny loop and approver-decides done; Anna can already decide
+her own request at `/approvals/mine` — notification, revoke UI, and grant duration remain.)*
 
 ## v0.4.1 — Self-service delegation (owner-managed)
 

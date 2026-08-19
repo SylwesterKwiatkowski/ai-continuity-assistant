@@ -170,10 +170,11 @@ def test_lucy_no_policy_email_blocked(client: TestClient) -> None:
     assert "blocked" in resp.text
 
 
-# ------------------------------------------------------------------ 8. admin grant/deny
+# ------------------------------------------------------------------ 8. approval grant/deny
 
 
 def _blocked_lucy_approval_id(client: TestClient) -> str:
+    """Gmail denial -> nominee is the mailbox owner, anna (ApprovalType.MAILBOX_OWNER)."""
     login(client, "lucy")
     resp = client.post(
         "/flows/email",
@@ -185,24 +186,49 @@ def _blocked_lucy_approval_id(client: TestClient) -> str:
     return match.group(1)
 
 
-def test_non_admin_cannot_grant_approval(client: TestClient) -> None:
+def _blocked_mark_teams_approval_id(client: TestClient) -> str:
+    """Teams denial -> nominee is the target's manager, lucy (ApprovalType.MANAGER)."""
+    login(client, "mark")
+    resp = client.post(
+        "/flows/teams",
+        data={"target": "Anna", "client": "OtherCorp", "project": "Different"},
+    )
+    assert "blocked" in resp.text
+    match = re.search(r"Approval request <strong>(\S+)</strong>", resp.text)
+    assert match, resp.text
+    return match.group(1)
+
+
+def test_named_approver_can_grant_without_admin_role(client: TestClient) -> None:
+    """D21: anna is the nominated approver for her own mailbox — no admin role needed."""
     approval_id = _blocked_lucy_approval_id(client)
-    login(client, "anna")  # anna has no admin role
+    login(client, "anna")  # anna has no admin role, but IS the nominee here
+    resp = client.post(f"/admin/approvals/{approval_id}/grant", follow_redirects=False)
+    assert resp.status_code == 303
+
+
+def test_non_nominee_non_admin_cannot_decide(client: TestClient) -> None:
+    """anna is neither admin nor the nominee for this Teams request (lucy, the manager, is)."""
+    approval_id = _blocked_mark_teams_approval_id(client)
+    login(client, "anna")
     resp = client.post(f"/admin/approvals/{approval_id}/grant")
     assert resp.status_code == 403
 
 
-def test_admin_grant_makes_the_blocked_read_succeed(client: TestClient, app: FastAPI) -> None:
+def test_admin_override_grant_makes_the_blocked_read_succeed(
+    client: TestClient, app: FastAPI
+) -> None:
     approval_id = _blocked_lucy_approval_id(client)
 
-    login(client, "mark")  # also admin (post-D19 identity mapping)
+    login(client, "mark")  # admin, but NOT the nominee (anna is) — an override
     resp = client.post(f"/admin/approvals/{approval_id}/grant", follow_redirects=False)
     assert resp.status_code == 303
 
     approval = app.state.orchestrator.approvals.get(approval_id)
     assert approval is not None
     assert approval.status == "granted"
-    assert approval.approver == "mark"
+    assert approval.approver == "anna"  # nomination untouched
+    assert approval.decided_by == "mark"  # mark is who actually decided
 
     # The identical request from lucy now succeeds, no restart needed.
     login(client, "lucy")
@@ -213,7 +239,7 @@ def test_admin_grant_makes_the_blocked_read_succeed(client: TestClient, app: Fas
     assert "allowed" in resp2.text
 
 
-def test_admin_deny_leaves_the_read_blocked(client: TestClient, app: FastAPI) -> None:
+def test_admin_override_deny_leaves_the_read_blocked(client: TestClient, app: FastAPI) -> None:
     approval_id = _blocked_lucy_approval_id(client)
 
     login(client, "mark")
@@ -228,6 +254,7 @@ def test_admin_deny_leaves_the_read_blocked(client: TestClient, app: FastAPI) ->
     assert approval is not None
     assert approval.status == "denied"
     assert approval.reason == "not right now"
+    assert approval.decided_by == "mark"
 
     login(client, "lucy")
     resp2 = client.post(
@@ -235,3 +262,28 @@ def test_admin_deny_leaves_the_read_blocked(client: TestClient, app: FastAPI) ->
         data={"target": "Anna", "client": "ClientCo", "project": "API Integration"},
     )
     assert "blocked" in resp2.text
+
+
+# ------------------------------------------------------------------ 9. /approvals/mine
+
+
+def test_my_approvals_shows_requests_naming_me_as_nominee(client: TestClient) -> None:
+    approval_id = _blocked_lucy_approval_id(client)  # nominates anna
+    login(client, "anna")
+    resp = client.get("/approvals/mine")
+    assert resp.status_code == 200
+    assert approval_id in resp.text
+
+
+def test_my_approvals_empty_for_someone_with_nothing_pending(client: TestClient) -> None:
+    _blocked_lucy_approval_id(client)  # nominates anna, not lucy
+    login(client, "lucy")
+    resp = client.get("/approvals/mine")
+    assert resp.status_code == 200
+    assert "Nothing waiting on you" in resp.text
+
+
+def test_my_approvals_requires_login(client: TestClient) -> None:
+    resp = client.get("/approvals/mine", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/login"

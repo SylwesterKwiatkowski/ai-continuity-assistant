@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>My approvals</h1>
+<p class="note" style="margin-bottom:1rem;">
+  Requests where the system has nominated you as the person who should decide — usually
+  because it's your own mailbox or Teams context someone is asking to read.
+</p>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Requester</th>
+          <th>Systems</th>
+          <th>Reason it was blocked</th>
+          <th>Decision</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ap in pending %}
+        <tr>
+          <td>{{ ap.id }}</td>
+          <td>{{ ap.requester }}</td>
+          <td>{{ ap.systems_requested | join(', ') }}</td>
+          <td>{{ ap.reason or '—' }}</td>
+          <td>
+            <form method="post" action="/admin/approvals/{{ ap.id }}/grant" style="display:inline;">
+              <input type="hidden" name="redirect_to" value="/approvals/mine">
+              <button type="submit">Grant</button>
+            </form>
+            <form method="post" action="/admin/approvals/{{ ap.id }}/deny" style="display:inline;">
+              <input type="hidden" name="redirect_to" value="/approvals/mine">
+              <button type="submit">Deny</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" style="color:#868e96; text-align:center;">Nothing waiting on you right now.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

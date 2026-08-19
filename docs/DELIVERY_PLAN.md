@@ -112,7 +112,7 @@ Keep D17's pluggable-provider seam. Only the dev *provider* is being retired, no
 
 ## Phase 2 — Consent (v0.4.0)
 
-### 5. `feature/approver-decides`
+### 5. `feature/approver-decides` — ✅ done (2026-08-19, DECISIONS D21)
 
 The single highest value-per-line change available. No dependencies; do it first.
 

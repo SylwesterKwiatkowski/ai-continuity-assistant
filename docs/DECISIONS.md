@@ -225,3 +225,32 @@ Each entry: **decision** · **why** · **tradeoffs / alternatives** · **status*
   another schema change. `GRANT_DURATION_DAYS` is a fixed constant, not requester-chosen.
 - **Status:** Implemented (grant/deny core loop only). ruff, mypy --strict, and the full
   pytest suite (136 tests) are green.
+
+### D21 — v0.4.0: the nominated approver can decide, not only an admin
+- **What:** `PermissionEngine._suggest_approver` already nominates who *should* decide a
+  blocked delegated read (the mailbox owner for Gmail, the target's manager for Teams) and
+  records it as `ApprovalRequest.approver` — but `POST /admin/approvals/{id}/grant`/`/deny`
+  were `_require_admin`-gated, so the code contradicted what `SECURITY_MODEL.md` already
+  claimed. Fixed: `web/routes.py` gains `_require_approver_or_admin`, which allows either
+  the nominated approver (`approval.approver == current_user`) or an admin. A new page,
+  `GET /approvals/mine` (not admin-gated), lists pending requests naming the current user
+  as approver, with the same Grant/Deny forms `/admin` uses.
+- **`approver` vs `decided_by`:** previously granting/denying overwrote `approval.approver`
+  with whoever decided, destroying the record of who was *nominated*. `ApprovalRequest`
+  now has both: `approver` is set once, at creation, and never touched again; `decided_by`
+  records who actually acted. They differ exactly when an admin overrides — which
+  `Orchestrator._override_note` then appends to the audit event's `reason`
+  (`[ADMIN OVERRIDE — nominated approver was X]`), making it "audited as an override,
+  distinguishable in the log" per `docs/DELIVERY_PLAN.md` branch 5.
+- **Why:** the whole point of naming an approver was so the actual data owner decides
+  access to their own data — routing every decision through an admin regardless made that
+  nomination cosmetic. This is the smallest change with the highest value in the v0.4.0
+  backlog (DELIVERY_PLAN.md), because the primitive (`approver`) already existed; only the
+  gate was wrong.
+- **Tradeoffs:** `/approvals/mine` filters client-side over `orch.approvals.pending()`
+  (no new repository query) — fine at current scale, revisit if approval volume grows.
+  Redirect target after a decision is a form field validated against an allow-list
+  (`{"/admin", "/approvals/mine"}`), not the `Referer` header, to avoid any open-redirect
+  surface.
+- **Status:** Implemented (`feature/approver-decides`, DELIVERY_PLAN.md branch 5 of 8).
+  ruff, mypy --strict, and the full pytest suite (141 tests) are green.

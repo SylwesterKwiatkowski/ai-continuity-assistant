@@ -567,18 +567,33 @@ class Orchestrator:
             raise ApprovalAlreadyDecided(approval_id, approval.status)
         return approval
 
-    def grant_approval(self, approval_id: str, admin_user: str) -> ApprovalRequest:
+    @staticmethod
+    def _override_note(approval: ApprovalRequest, decided_by: str) -> str:
+        """Empty for a normal decision; a distinguishing note when it's an override.
+
+        An override is someone other than the nominated approver deciding — always an
+        admin in practice, since that's the only other path routes.py allows through
+        (DECISIONS.md D21). Distinct from a plain decision so it reads unambiguously in
+        the audit log, per DELIVERY_PLAN.md branch 5.
+        """
+        if approval.approver is not None and decided_by != approval.approver:
+            return f" [ADMIN OVERRIDE — nominated approver was {approval.approver}]"
+        return ""
+
+    def grant_approval(self, approval_id: str, decided_by: str) -> ApprovalRequest:
         """Approve a pending request: materialize a scoped, auto-expiring policy per
         requested system, make it effective immediately, and mark the request granted.
 
-        This is an admin decision, not a data access — it does not go through the
-        Permission Engine itself. Every system granted still emits its own audit event
-        (an admin action, not a read of anyone's data) so the decision is traceable in
-        /admin like everything else (SECURITY_MODEL.md).
+        `decided_by` is normally the nominated approver (`approval.approver`) acting on
+        their own data; an admin may also decide as an explicit, audited override (D21).
+        This does not go through the Permission Engine itself — it isn't a data access.
+        Every system granted still emits its own audit event so the decision is traceable
+        in /admin like everything else (SECURITY_MODEL.md).
         """
         approval = self._get_pending_approval(approval_id)
         if approval.target_user is None:
             raise ValueError(f"approval {approval_id!r} has no target_user to grant access to")
+        override_note = self._override_note(approval, decided_by)
 
         expiry = self._clock() + timedelta(days=GRANT_DURATION_DAYS)
         granted_policy_ids: list[str] = []
@@ -618,31 +633,38 @@ class Orchestrator:
                     self._policy_store.save_teams([teams_policy])
                 granted_policy_ids.append(teams_policy.id)
             self._audit.record_write(
-                active_user=admin_user, system=system, action="grant_delegated_access",
+                active_user=decided_by, system=system, action="grant_delegated_access",
                 target_user=approval.target_user, resource_ids=granted_policy_ids[-1:],
                 resource_type="policy", approval_id=approval.id, result_status="granted",
-                reason=f"approved by {admin_user}, expires {expiry.isoformat()}",
+                reason=f"approved by {decided_by}, expires {expiry.isoformat()}{override_note}",
             )
 
         decided = approval.model_copy(
-            update={"status": "granted", "approver": admin_user, "decided_at": self._clock()}
+            update={"status": "granted", "decided_by": decided_by, "decided_at": self._clock()}
         )
         self._approvals.add(decided)
         return decided
 
-    def deny_approval(self, approval_id: str, admin_user: str, reason: str = "") -> ApprovalRequest:
-        """Deny a pending request. No policy is created; the decision itself is audited."""
+    def deny_approval(
+        self, approval_id: str, decided_by: str, reason: str = ""
+    ) -> ApprovalRequest:
+        """Deny a pending request. No policy is created; the decision itself is audited.
+
+        See `grant_approval` for what `decided_by` means and how an override is recorded.
+        """
         approval = self._get_pending_approval(approval_id)
+        override_note = self._override_note(approval, decided_by)
         for system in approval.systems_requested:
             self._audit.record_write(
-                active_user=admin_user, system=system, action="deny_delegated_access",
+                active_user=decided_by, system=system, action="deny_delegated_access",
                 target_user=approval.target_user, approval_id=approval.id,
-                result_status="denied", reason=reason or f"denied by {admin_user}",
+                result_status="denied",
+                reason=(reason or f"denied by {decided_by}") + override_note,
             )
         decided = approval.model_copy(
             update={
                 "status": "denied",
-                "approver": admin_user,
+                "decided_by": decided_by,
                 "decided_at": self._clock(),
                 "reason": reason or approval.reason,
             }

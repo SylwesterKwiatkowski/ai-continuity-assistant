@@ -23,7 +23,8 @@ from assistant.identity.oauth import GoogleOAuthError, GoogleOAuthProvider
 from assistant.identity.sessions import SessionManager
 from assistant.orchestrator.responses import AssistantResponse
 from assistant.orchestrator.service import Orchestrator
-from assistant.permissions.approvals import ApprovalAlreadyDecided, ApprovalNotFound
+from assistant.permissions.approvals import ApprovalAlreadyDecided
+from assistant.permissions.policies import ApprovalRequest
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
@@ -420,27 +421,89 @@ def admin_page(request: Request) -> _TemplateResponse | RedirectResponse | HTMLR
     )
 
 
+_SAFE_DECISION_REDIRECTS = frozenset({"/admin", "/approvals/mine"})
+
+
+def _decision_redirect(redirect_to: str) -> RedirectResponse:
+    target = redirect_to if redirect_to in _SAFE_DECISION_REDIRECTS else "/approvals/mine"
+    return RedirectResponse(url=target, status_code=303)
+
+
+def _require_approver_or_admin(
+    request: Request, approval: ApprovalRequest
+) -> str | RedirectResponse | HTMLResponse:
+    """Return user_id if authenticated AND (the nominated approver OR admin) (D21).
+
+    The engine already nominates who *should* decide (e.g. the mailbox owner) via
+    `approval.approver`; an admin may still decide any request as an explicit, audited
+    override — see `Orchestrator._override_note`.
+    """
+    result = _require_user(request)
+    if isinstance(result, RedirectResponse):
+        return result
+    if result == approval.approver:
+        return result
+    resolver = request.app.state.services.resolver
+    person = resolver.by_id(result)
+    if "admin" in person.roles:
+        return result
+    return HTMLResponse(
+        "<h1>403 Forbidden</h1><p>Only the nominated approver or an admin can decide this "
+        "request.</p>",
+        status_code=403,
+    )
+
+
 @router.post("/admin/approvals/{approval_id}/grant")
-def admin_grant_approval(request: Request, approval_id: str) -> Response:
-    result = _require_admin(request)
+def admin_grant_approval(
+    request: Request, approval_id: str, redirect_to: str = Form(default="/admin")
+) -> Response:
+    orch = _get_orchestrator(request)
+    approval = orch.approvals.get(approval_id)
+    if approval is None:
+        return HTMLResponse("<h1>404 Not Found</h1>", status_code=404)
+    result = _require_approver_or_admin(request, approval)
     if not isinstance(result, str):
         return result
     try:
-        _get_orchestrator(request).grant_approval(approval_id, admin_user=result)
-    except (ApprovalNotFound, ApprovalAlreadyDecided):
-        pass  # stale page / double-submit — fall through to the current admin state
-    return RedirectResponse(url="/admin", status_code=303)
+        orch.grant_approval(approval_id, decided_by=result)
+    except ApprovalAlreadyDecided:
+        pass  # stale page / double-submit — fall through to the current state
+    return _decision_redirect(redirect_to)
 
 
 @router.post("/admin/approvals/{approval_id}/deny")
 def admin_deny_approval(
-    request: Request, approval_id: str, reason: str = Form(default="")
+    request: Request,
+    approval_id: str,
+    reason: str = Form(default=""),
+    redirect_to: str = Form(default="/admin"),
 ) -> Response:
-    result = _require_admin(request)
+    orch = _get_orchestrator(request)
+    approval = orch.approvals.get(approval_id)
+    if approval is None:
+        return HTMLResponse("<h1>404 Not Found</h1>", status_code=404)
+    result = _require_approver_or_admin(request, approval)
     if not isinstance(result, str):
         return result
     try:
-        _get_orchestrator(request).deny_approval(approval_id, admin_user=result, reason=reason)
-    except (ApprovalNotFound, ApprovalAlreadyDecided):
+        orch.deny_approval(approval_id, decided_by=result, reason=reason)
+    except ApprovalAlreadyDecided:
         pass
-    return RedirectResponse(url="/admin", status_code=303)
+    return _decision_redirect(redirect_to)
+
+
+@router.get("/approvals/mine", response_class=HTMLResponse, response_model=None)
+def my_approvals(request: Request) -> _TemplateResponse | RedirectResponse:
+    """Pending approval requests naming the current user as the nominated approver.
+
+    Not admin-gated — this is precisely what lets someone who is *not* an admin (e.g. a
+    mailbox owner) decide requests over their own data (D21).
+    """
+    result = _require_user(request)
+    if isinstance(result, RedirectResponse):
+        return result
+    ctx = _user_ctx(request, result)
+    orch = _get_orchestrator(request)
+    mine = [a for a in orch.approvals.pending() if a.approver == result]
+    return _render(request, "my_approvals.html", {**ctx, "pending": mine})
