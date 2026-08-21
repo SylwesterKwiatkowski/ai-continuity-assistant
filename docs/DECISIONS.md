@@ -254,3 +254,37 @@ Each entry: **decision** · **why** · **tradeoffs / alternatives** · **status*
   surface.
 - **Status:** Implemented (`feature/approver-decides`, DELIVERY_PLAN.md branch 5 of 8).
   ruff, mypy --strict, and the full pytest suite (141 tests) are green.
+
+### D22 — v0.2.1: people move to SQLite, behind a real schema-migration mechanism
+- **What:** `people` table + `SqlitePersonRepository` (`storage/repositories.py`), seeded
+  from `seeds/people.json` on first boot only (`storage/seed.py:initialize_database`,
+  mirroring how `connections.json`/`policies.json` already seed) — the seed file is now a
+  bootstrap fixture, the database is the runtime source of truth. `IdentityResolver` gained
+  `from_repository()` and `upsert()`; `bootstrap.py` builds the resolver from the database
+  and hands that **same instance** to both the engine and the orchestrator, so
+  `resolver.upsert(person)` takes effect for both in-process, with no restart — the exact
+  pattern D20 established for policies (`engine.add_mailbox_policy()`). `from_seed()` is
+  unchanged and remains for tests and `build_default_orchestrator`, which have no database.
+  `Person` gained an `active: bool = True` field — schema only, no enforcement yet (see
+  Tradeoffs).
+- **The migration mechanism (`storage/db.py`):** schema changes are now a versioned,
+  append-only list of `(version, sql)` migrations tracked in a new `schema_migrations`
+  table, applied once each on `Database.__init__`. Each migration's SQL uses
+  `CREATE TABLE IF NOT EXISTS`, so applying migration 1 (the original five tables) against
+  a database that already has them — e.g. the deployed host's file, created before
+  migrations existed — is a safe no-op: it records the version without touching a single
+  existing row. Migration 2 adds `people`.
+- **Why this was required, not optional:** `ROADMAP.md`'s Operational-debt register and
+  `DELIVERY_PLAN.md`'s Risk 1 both call out that the deployed host now holds irreplaceable
+  audit history and granted policies, and that D20's policy re-keying was only safe because
+  it landed on a database with nothing in it yet — the *next* schema change would not have
+  that luxury. This branch is that next schema change, so it had to ship the mechanism
+  rather than repeat the one-off fix.
+- **Tradeoffs / what's deliberately not here:** `active` is inert — no login check, no
+  policy-matching check, no UI exclusion. Wiring that in prematurely, ahead of
+  `/admin/people` (branch 2), would mean deactivation could be triggered with no way to
+  *undo* it through the product. Also out of scope here: admin CRUD, role-change auditing,
+  a real Google account for `anna`, and retiring the dev login provider — all later
+  branches per `DELIVERY_PLAN.md`.
+- **Status:** Implemented (`feature/people-persistence`, DELIVERY_PLAN.md branch 1 of 8,
+  critical path). ruff, mypy --strict, and the full pytest suite (151 tests) are green.

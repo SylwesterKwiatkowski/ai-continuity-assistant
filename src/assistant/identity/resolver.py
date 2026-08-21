@@ -1,17 +1,29 @@
 """Identity mapping: natural-language name / email / id -> Person, and per-system handles.
 
-MVP loads people from `seeds/people.json` (DECISIONS.md D8). Live directory sync is deferred.
+MVP loaded people from `seeds/people.json` only (DECISIONS.md D8); as of D22, that file
+seeds the `people` table on first boot only (`storage/seed.py`) and the resolver is built
+from the database (`from_repository`) at every subsequent run. `from_seed` remains for
+tests and `build_default_orchestrator`, which have no database. Live directory sync is
+still deferred.
 """
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Protocol, runtime_checkable
 
 from assistant.config import SEEDS_DIR
 from assistant.domain.enums import System
 from assistant.domain.models import Person
 from assistant.identity.errors import AmbiguousPerson, PersonNotFound
+
+
+@runtime_checkable
+class PersonRepository(Protocol):
+    """Persistence abstraction the resolver reads its initial population from (D22)."""
+
+    def all(self) -> list[Person]: ...
 
 
 class IdentityResolver:
@@ -29,9 +41,26 @@ class IdentityResolver:
         people = [Person.model_validate(item) for item in data]
         return cls(people)
 
+    @classmethod
+    def from_repository(cls, repo: PersonRepository) -> IdentityResolver:
+        return cls(repo.all())
+
     @property
     def people(self) -> list[Person]:
         return list(self._by_id.values())
+
+    def upsert(self, person: Person) -> None:
+        """Add or update a person, effective immediately in this process — no restart.
+
+        Mirrors the pattern DECISIONS.md D20 established for policies
+        (`PermissionEngine.add_mailbox_policy`): mutate the shared instance in place, since
+        `bootstrap.py` hands this same resolver to both the engine and the orchestrator.
+        """
+        existing = self._by_id.get(person.id)
+        if existing is not None and existing.email.lower() != person.email.lower():
+            del self._by_email[existing.email.lower()]
+        self._by_id[person.id] = person
+        self._by_email[person.email.lower()] = person
 
     def by_id(self, person_id: str) -> Person:
         person = self._by_id.get(person_id)

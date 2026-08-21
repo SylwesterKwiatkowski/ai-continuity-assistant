@@ -50,7 +50,7 @@ real login. Start this at branch 1, not at branch 8.
 
 ## Phase 1 — Identities (v0.2.1)
 
-### 1. `feature/people-persistence`
+### 1. `feature/people-persistence` — ✅ done (2026-08-19, DECISIONS D22)
 
 Pure backend. No user-visible change; the existing suite is the regression net.
 
@@ -169,7 +169,8 @@ Ordered by severity. Each names the failure mode, not just the concern.
 
 ### High
 
-**R1 — Irreplaceable state on the deployed host, with no migration path.**
+**R1 — Irreplaceable state on the deployed host, with no migration path.** *(Mechanism
+shipped 2026-08-19, DECISIONS D22 — residual risk below.)*
 D20's policy re-keying was absorbed by a fresh database. Branch 1 adds a table; branch 7 may alter
 policy rows. That host now holds real audit history and real granted policies.
 *Failure mode:* not an error — a silent reseed or schema mismatch that drops the audit trail. In a
@@ -177,6 +178,10 @@ system whose entire value proposition is "every access is auditable", that is th
 outcome, and it is silent.
 *Mitigation:* build the migration mechanism inside branch 1, before it is urgent. Back up the
 host's SQLite file before the first deploy of branch 1.
+*Residual risk:* the mechanism only helps if every future schema change is written as a migration
+instead of an ad-hoc edit — branch 7 (revoke/duration) is the next one to watch. The host backup
+still hasn't been taken; that's an operational step outside this repo, not something a commit can
+close.
 
 **R2 — Self-service delegation is a privilege-escalation surface.**
 Every grant path so far had an admin in it. `/me/delegations` lets a non-admin create policy rows.

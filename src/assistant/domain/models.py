@@ -27,6 +27,11 @@ class Person(BaseModel):
     manager_id: str | None = None
     backup_owners: list[str] = Field(default_factory=list)
     roles: list[str] = Field(default_factory=list)
+    # Deactivate, never hard-delete (ROADMAP.md v0.2.1): policies/connections/audit events
+    # reference people by id, so removing a row would orphan them. The field exists from
+    # this schema onward; enforcement (deny login, exclude from pickers, deny as a
+    # requester) is v0.2.1 branch 2's job — see DECISIONS.md D22.
+    active: bool = True
 
     def handle_for(self, system: System) -> str | None:
         """Return this person's identifier in `system`, or None if unmapped.

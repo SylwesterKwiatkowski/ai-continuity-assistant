@@ -5,14 +5,27 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from assistant.domain.models import Person
 from assistant.identity.connections import Connection
 from assistant.permissions.policies import MailboxAccessPolicy, TeamsAccessPolicy
 from assistant.storage.db import Database
-from assistant.storage.repositories import SqliteConnectionStore, SqlitePolicyStore
+from assistant.storage.repositories import (
+    SqliteConnectionStore,
+    SqlitePersonRepository,
+    SqlitePolicyStore,
+)
 
 
 def initialize_database(db: Database, seeds_dir: Path) -> None:
     """Seed the database from JSON files if the relevant tables are empty."""
+    person_repo = SqlitePersonRepository(db)
+    if not person_repo.all():
+        people_path = seeds_dir / "people.json"
+        if people_path.exists():
+            data = json.loads(people_path.read_text(encoding="utf-8"))
+            for item in data:
+                person_repo.upsert(Person.model_validate(item))
+
     conn_store = SqliteConnectionStore(db)
     if not conn_store.all():
         connections_path = seeds_dir / "connections.json"

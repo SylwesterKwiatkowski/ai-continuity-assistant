@@ -1,9 +1,11 @@
-"""SQLite-backed repository implementations for audit, approvals, connections, and policies."""
+"""SQLite-backed repository implementations for audit, approvals, connections, policies,
+and people."""
 
 from __future__ import annotations
 
 from assistant.audit.models import AuditEvent
 from assistant.domain.enums import System
+from assistant.domain.models import Person
 from assistant.identity.connections import Connection
 from assistant.permissions.policies import (
     ApprovalRequest,
@@ -115,3 +117,32 @@ class SqlitePolicyStore:
 
     def delete_teams(self, policy_id: str) -> None:
         self._db.execute("DELETE FROM policies WHERE kind = 'teams' AND key = ?", (policy_id,))
+
+
+class SqlitePersonRepository:
+    """Person store backed by SQLite (DECISIONS.md D22).
+
+    `seeds/people.json` is a first-boot fixture only (`storage/seed.py`) — once seeded,
+    this table is the runtime source of truth. No delete method: deactivate via `upsert`
+    with `Person.active=False`, never remove a row (policies/connections/audit events
+    reference people by id).
+    """
+
+    def __init__(self, db: Database) -> None:
+        self._db = db
+
+    def upsert(self, person: Person) -> None:
+        self._db.execute(
+            "INSERT OR REPLACE INTO people (id, data) VALUES (?, ?)",
+            (person.id, person.model_dump_json()),
+        )
+
+    def get(self, person_id: str) -> Person | None:
+        rows = self._db.query("SELECT data FROM people WHERE id = ?", (person_id,))
+        if not rows:
+            return None
+        return Person.model_validate_json(rows[0][0])  # type: ignore[arg-type]
+
+    def all(self) -> list[Person]:
+        rows = self._db.query("SELECT data FROM people")
+        return [Person.model_validate_json(row[0]) for row in rows]  # type: ignore[arg-type]

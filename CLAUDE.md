@@ -21,7 +21,7 @@ Security contract: [`docs/SECURITY_MODEL.md`](docs/SECURITY_MODEL.md). Architect
 |---|---|
 | What are we building next, and why | [`docs/ROADMAP.md`](docs/ROADMAP.md) |
 | In what order, on which branch, what will bite me | [`docs/DELIVERY_PLAN.md`](docs/DELIVERY_PLAN.md) |
-| Why is the code shaped like this | [`docs/DECISIONS.md`](docs/DECISIONS.md) (D1–D20) |
+| Why is the code shaped like this | [`docs/DECISIONS.md`](docs/DECISIONS.md) (D1–D22) |
 | How do I test it | [`docs/TESTING.md`](docs/TESTING.md) |
 | What is already built | [`docs/HANDOFF.md`](docs/HANDOFF.md) |
 
@@ -77,4 +77,7 @@ so with the output — do not describe partial work as finished.
 - The dev user picker (`AUTH_MODE=dev`) is still present and is scheduled for retirement in
   v0.2.1, but **only after** `/admin/people` exists. Do not remove it early: every web test
   currently authenticates through it.
-- People are the last domain object not in SQLite. That is the v0.2.1 headline item.
+- People are in SQLite now (2026-08-19, DECISIONS D22), behind a real schema-migration
+  mechanism. Still open in v0.2.1: `/admin/people` CRUD, deactivation *enforcement* (the
+  `Person.active` field exists but nothing checks it yet), role-change auditing, a real
+  Google account for `anna`, and retiring the dev login provider.

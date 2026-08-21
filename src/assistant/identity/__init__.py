@@ -12,7 +12,7 @@ from assistant.identity.errors import (
     IdentityError,
     PersonNotFound,
 )
-from assistant.identity.resolver import IdentityResolver
+from assistant.identity.resolver import IdentityResolver, PersonRepository
 from assistant.identity.sessions import SessionManager
 
 __all__ = [
@@ -24,6 +24,7 @@ __all__ = [
     "IdentityResolver",
     "InMemoryTokenStore",
     "PersonNotFound",
+    "PersonRepository",
     "SessionManager",
     "TokenStore",
 ]

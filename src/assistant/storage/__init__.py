@@ -7,6 +7,7 @@ from assistant.storage.repositories import (
     SqliteApprovalRepository,
     SqliteAuditRepository,
     SqliteConnectionStore,
+    SqlitePersonRepository,
     SqlitePolicyStore,
 )
 from assistant.storage.seed import initialize_database
@@ -20,5 +21,6 @@ __all__ = [
     "SqliteApprovalRepository",
     "SqliteAuditRepository",
     "SqliteConnectionStore",
+    "SqlitePersonRepository",
     "SqlitePolicyStore",
 ]

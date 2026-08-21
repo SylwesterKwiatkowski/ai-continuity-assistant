@@ -29,6 +29,7 @@ from assistant.storage import (
     SqliteApprovalRepository,
     SqliteAuditRepository,
     SqliteConnectionStore,
+    SqlitePersonRepository,
     SqlitePolicyStore,
     database_from_url,
     initialize_database,
@@ -45,6 +46,7 @@ class AppServices:
     resolver: IdentityResolver
     settings: Settings
     policy_store: SqlitePolicyStore
+    person_repo: SqlitePersonRepository
     oauth_provider: GoogleOAuthProvider | None
 
 
@@ -70,7 +72,8 @@ def build_app_services(
 
     registry = ConnectionRegistry(store=conn_store, token_store=token_store)
 
-    resolver = IdentityResolver.from_seed()
+    person_repo = SqlitePersonRepository(db)
+    resolver = IdentityResolver.from_repository(person_repo)
     policy_store = SqlitePolicyStore(db)
     connectors = build_mock_registry()
     calendar = cast(CalendarPort, connectors[System.CALENDAR])
@@ -113,5 +116,6 @@ def build_app_services(
         resolver=resolver,
         settings=settings,
         policy_store=policy_store,
+        person_repo=person_repo,
         oauth_provider=oauth_provider,
     )

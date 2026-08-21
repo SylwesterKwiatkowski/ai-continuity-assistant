@@ -10,9 +10,11 @@ starting any of the work below.**
 Status: **v0.1.0-mvp shipped** (M0–M7: security core, mock connectors, orchestrator flows,
 web app); **v0.2 complete** — trust infrastructure and the Google OAuth login provider have
 both landed, and Google sign-in is live and verified against the deployed instance (client
-credentials live in that host's gitignored `.env`, never in the repo). **v0.2.1 is next**:
-real people log in now, so identities must become administrable before anything else.
-See `IMPLEMENTATION_PLAN.md` for MVP contents; current test count comes from CI, not docs.
+credentials live in that host's gitignored `.env`, never in the repo). **v0.2.1 in progress**:
+people are in SQLite behind a real migration mechanism (DELIVERY_PLAN branch 1, DECISIONS
+D22); admin CRUD, deactivation enforcement, role-change auditing, and retiring the dev login
+provider remain. See `IMPLEMENTATION_PLAN.md` for MVP contents; current test count comes from
+CI, not docs.
 
 ## v0.2.0 — Trustworthy identity & memory  *(do this first)*
 
@@ -48,13 +50,14 @@ boot into an in-memory `IdentityResolver` (`identity/resolver.py`), while audit,
 connections and policies are all SQLite-backed. Onboarding a colleague today means editing JSON
 and restarting the host — untenable now that real Google accounts sign in.
 
-- [ ] **`people` table + `SqlitePersonRepository`**, seeded from `seeds/people.json` on first
-      boot (extend `storage/seed.py:initialize_database`, which does not touch people at all
-      today). The seed file stays a bootstrap fixture; the DB becomes the source of truth.
-- [ ] **Runtime-mutable resolver** — `bootstrap.py` hands one `IdentityResolver` instance to the
-      engine and orchestrator at startup, so a new or edited person must take effect in-process
-      with no restart. Mirror the pattern D20 established for policies
-      (`engine.add_mailbox_policy()`); do not invent a second mechanism.
+- [x] **`people` table + `SqlitePersonRepository`** (2026-08-19), seeded from
+      `seeds/people.json` on first boot only (`storage/seed.py:initialize_database`). The seed
+      file is now a bootstrap fixture; the DB is the runtime source of truth. Shipped alongside
+      a real schema-migration mechanism (`storage/db.py`) — see DECISIONS D22.
+- [x] **Runtime-mutable resolver** (2026-08-19): `bootstrap.py` hands one `IdentityResolver`
+      instance to the engine and orchestrator at startup; `resolver.upsert()` makes a new or
+      edited person effective in-process, no restart — mirrors D20's
+      `engine.add_mailbox_policy()`. See DECISIONS D22.
 - [ ] **Admin user CRUD** at `/admin/people`, gated by the existing `_require_admin`
       (`web/routes.py`): create, edit (name, email, per-system handles, manager, backup owners),
       deactivate. Email edits must keep OAuth login working — login resolves by email (D19).
@@ -211,9 +214,11 @@ needed, and Mark's access changes on his very next query.
 - [ ] **Secret rotation procedure** for `SESSION_SECRET` and `TOKEN_STORE_KEY`. Rotating the
       latter orphans every encrypted token; `bootstrap.py` silently re-stubs them today, which
       real connectors will not tolerate. Write the procedure before v0.3, not after.
-- [ ] **Schema migrations.** `initialize_database` seeds empty tables but there is no migration
-      path; D20's policy-key change was absorbed by a fresh DB. The deployed host now holds state
-      worth keeping, so the next schema change needs a real migration.
+- [x] **Schema migrations** (2026-08-19): `storage/db.py` now runs a versioned, append-only
+      list of migrations tracked in `schema_migrations`, applied via `CREATE TABLE IF NOT
+      EXISTS` — safe against a database that already has a table from before migrations
+      existed (verified against a simulated pre-migration file; see DECISIONS D22). Landed
+      in the same branch that added the `people` table, per its own requirement.
 - [ ] **DPIA / works-council review timing** (D12, listed under v1.0). Mock data keeps it
       deferrable. The moment v0.3 points real connectors at colleagues' actual mailboxes it is
       not deferrable — and "we were only testing" is not a defence under GDPR.
