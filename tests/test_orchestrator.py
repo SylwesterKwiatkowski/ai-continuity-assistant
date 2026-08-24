@@ -6,6 +6,7 @@ from datetime import date
 
 import pytest
 
+from assistant.identity import PersonDeactivated
 from assistant.orchestrator import Orchestrator, build_default_orchestrator
 from assistant.permissions import ApprovalAlreadyDecided, ApprovalNotFound
 
@@ -173,6 +174,29 @@ def test_granting_an_already_decided_approval_raises() -> None:
         blocked_orch.grant_approval(approval_id, decided_by="anna")
     with pytest.raises(ApprovalAlreadyDecided):
         blocked_orch.deny_approval(approval_id, decided_by="anna")
+
+
+# --- D23: deactivate, never hard-delete — policy creation is one of four enforcement points ---
+
+
+def test_grant_approval_refuses_a_deactivated_requester() -> None:
+    blocked_orch = build_default_orchestrator(clock=lambda: AFTER_OOO)
+    approval_id = _blocked_mark_approval_id(blocked_orch)
+    resolver = blocked_orch.resolver
+    resolver.upsert(resolver.by_id("mark").model_copy(update={"active": False}))
+
+    with pytest.raises(PersonDeactivated):
+        blocked_orch.grant_approval(approval_id, decided_by="anna")
+
+
+def test_grant_approval_refuses_a_deactivated_target() -> None:
+    blocked_orch = build_default_orchestrator(clock=lambda: AFTER_OOO)
+    approval_id = _blocked_mark_approval_id(blocked_orch)
+    resolver = blocked_orch.resolver
+    resolver.upsert(resolver.by_id("anna").model_copy(update={"active": False}))
+
+    with pytest.raises(PersonDeactivated):
+        blocked_orch.grant_approval(approval_id, decided_by="anna")
 
 
 # --- delegated Teams search ---

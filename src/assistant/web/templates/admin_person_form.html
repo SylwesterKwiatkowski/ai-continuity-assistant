@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{% if person %}Edit {{ person.name }}{% else %}New person{% endif %}</h1>
+
+{% if error %}
+<div style="background:#ffe3e3; border:1px solid #c92a2a; border-radius:6px; padding:0.75rem 1rem; margin-bottom:1rem; font-size:0.875rem; color:#c92a2a;">
+  {{ error }}
+</div>
+{% endif %}
+
+<div class="card">
+  <form method="post" action="{% if person %}/admin/people/{{ person.id }}/edit{% else %}/admin/people/new{% endif %}">
+    {% if not person %}
+    <label for="pf-id">Id</label>
+    <input id="pf-id" type="text" name="person_id" value="" required>
+    {% endif %}
+
+    <label for="pf-name">Name</label>
+    <input id="pf-name" type="text" name="name" value="{{ person.name if person else '' }}" required>
+
+    <label for="pf-email">Email</label>
+    <input id="pf-email" type="text" name="email" value="{{ person.email if person else '' }}" required>
+
+    <label for="pf-teams">Teams id</label>
+    <input id="pf-teams" type="text" name="teams_id" value="{{ person.teams_id if person else '' }}">
+
+    <label for="pf-jira">Jira id</label>
+    <input id="pf-jira" type="text" name="jira_id" value="{{ person.jira_id if person else '' }}">
+
+    <label for="pf-hubspot">HubSpot id</label>
+    <input id="pf-hubspot" type="text" name="hubspot_id" value="{{ person.hubspot_id if person else '' }}">
+
+    <label for="pf-manager">Manager id</label>
+    <input id="pf-manager" type="text" name="manager_id" value="{{ person.manager_id if person else '' }}">
+
+    <label for="pf-backups">Backup owners (comma-separated ids)</label>
+    <input id="pf-backups" type="text" name="backup_owners"
+           value="{{ person.backup_owners | join(', ') if person else '' }}">
+
+    <button type="submit">{% if person %}Save{% else %}Create{% endif %}</button>
+  </form>
+</div>
+
+{% if person %}
+<p class="note">Role and active-status changes have their own controls — see the
+  <a href="/admin/people">people list</a>.</p>
+{% endif %}
+{% endblock %}

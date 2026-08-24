@@ -288,3 +288,37 @@ Each entry: **decision** · **why** · **tradeoffs / alternatives** · **status*
   branches per `DELIVERY_PLAN.md`.
 - **Status:** Implemented (`feature/people-persistence`, DELIVERY_PLAN.md branch 1 of 8,
   critical path). ruff, mypy --strict, and the full pytest suite (151 tests) are green.
+
+### D23 — v0.2.1: `/admin/people` CRUD, and deactivation enforced at all four call sites
+- **What:** `GET/POST /admin/people` (list, create, edit, deactivate, reactivate),
+  `_require_admin`-gated like the rest of `/admin`. Create/edit persist via
+  `person_repo.upsert()` **and** call `resolver.upsert()` in the same request — the D22/D20
+  pattern of "persist, then make it live in-process" — so a new or edited person is
+  resolvable, and selectable in `/login`'s dev picker, with no restart. Editing an email
+  re-indexes the resolver's by-email lookup, which is exactly what OAuth login resolves
+  against (D19) — verified directly: change an email, the old one 404s, the new one works.
+- **Deactivation is now enforced at the four call sites ROADMAP.md's v0.2.1 section and
+  DELIVERY_PLAN.md's Risk 3 named, not just modeled:**
+  1. *Login* — `_session_user` (`web/routes.py`) now resolves the session's person and
+     treats an inactive one as unauthenticated, so deactivating someone **mid-session**
+     cuts them off on their next request, not at next expiry. The dev-login POST and the
+     Google OAuth callback both refuse an inactive person with a clear message, before
+     issuing a session.
+  2. *Policy evaluation* — `PermissionEngine.check()` gained `_check_deactivation`, run
+     before read/write logic: if `active_user` or `target_user` resolves to an inactive
+     person, deny with no approval offered (approving can't fix a deactivated account). A
+     no-op if the engine has no resolver wired (matches the existing graceful-degradation
+     style already used for `_suggest_approver`'s manager lookup).
+  3. *Policy creation* — `Orchestrator.grant_approval()` gained `_require_active`, raising
+     `PersonDeactivated` (new, `identity/errors.py`) if the approval's requester or target
+     is inactive, before materializing any policy.
+  4. *Person pickers* — the dev-login picker (the only one that exists) filters to active
+     people only; the new `/admin/people` list still shows everyone, since an admin
+     managing accounts needs to see deactivated ones too.
+  One field (`Person.active`, added in D22), four independent checks, one fact.
+- **What's deliberately still out of scope:** editing `roles` and toggling `active` are not
+  exposed on the edit form — both get their own audited path in `feature/role-audit-guard`
+  (branch 3), including the last-admin guard. Shipping role-editing here, before that guard
+  exists, would let an admin remove the last admin and lock everyone out.
+- **Status:** Implemented (`feature/admin-people-crud`, DELIVERY_PLAN.md branch 2 of 8).
+  ruff, mypy --strict, and the full pytest suite (177 tests) are green.

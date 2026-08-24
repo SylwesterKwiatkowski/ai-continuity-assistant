@@ -202,6 +202,49 @@ def test_delegated_lower_sensitivity_read_allowed_and_audited() -> None:
 
 # --- Phase-6 #10: ambiguous/blocked -> approval request object ---
 
+# --- D23: deactivate, never hard-delete — the engine is one of four enforcement points ---
+
+
+def _engine_with_deactivated(person_id: str) -> PermissionEngine:
+    resolver = IdentityResolver.from_seed()
+    resolver.upsert(resolver.by_id(person_id).model_copy(update={"active": False}))
+    return PermissionEngine.from_seed(
+        resolver=resolver, absence_provider=_AbsenceStub({"anna"}), clock=lambda: FIXED_TODAY
+    )
+
+
+def test_deactivated_active_user_denied() -> None:
+    decision = _engine_with_deactivated("mark").check(gmail_read_req())
+    assert decision.allowed is False
+    assert "deactivated" in decision.reason
+    assert "mark" in decision.reason
+
+
+def test_deactivated_target_user_denied() -> None:
+    decision = _engine_with_deactivated("anna").check(gmail_read_req())
+    assert decision.allowed is False
+    assert "deactivated" in decision.reason
+    assert "anna" in decision.reason
+
+
+def test_deactivated_person_denial_offers_no_approval() -> None:
+    decision = _engine_with_deactivated("mark").check(gmail_read_req())
+    assert decision.required_approval is None  # approving wouldn't fix a deactivated account
+
+
+def test_deactivation_check_is_noop_without_resolver() -> None:
+    engine = PermissionEngine(mailbox_policies=[], teams_policies=[], clock=lambda: FIXED_TODAY)
+    req = PermissionRequest(
+        active_user="ghost",
+        target_user=None,
+        system=System.JIRA,
+        action="get_assigned_issues",
+        action_type=ActionType.READ,
+    )
+    # No resolver wired -> the deactivation guard is a no-op -> normal self-tier logic runs.
+    assert engine.check(req).allowed is True
+
+
 def test_build_approval_request_targets_mailbox_owner() -> None:
     engine = make_engine(anna_ooo=False)
     req = gmail_read_req()

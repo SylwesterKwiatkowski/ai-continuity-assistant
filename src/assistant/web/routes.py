@@ -19,7 +19,9 @@ from fastapi.templating import Jinja2Templates
 from starlette.templating import _TemplateResponse
 
 from assistant.domain.enums import System
+from assistant.domain.models import Person
 from assistant.identity.oauth import GoogleOAuthError, GoogleOAuthProvider
+from assistant.identity.resolver import IdentityResolver
 from assistant.identity.sessions import SessionManager
 from assistant.orchestrator.responses import AssistantResponse
 from assistant.orchestrator.service import Orchestrator
@@ -51,9 +53,23 @@ def _get_oauth_provider(request: Request) -> GoogleOAuthProvider | None:
 
 
 def _session_user(request: Request) -> str | None:
-    """Return the authenticated user_id from the session cookie, or None."""
+    """Return the authenticated user_id from the session cookie, or None.
+
+    A session naming a deactivated person is treated as unauthenticated (D23) — revoking
+    someone must not wait for their session to expire on its own.
+    """
     token = request.cookies.get("session")
-    return _get_session_manager(request).verify(token)
+    user_id = _get_session_manager(request).verify(token)
+    if user_id is None:
+        return None
+    resolver = request.app.state.services.resolver
+    try:
+        person = resolver.by_id(user_id)
+    except Exception:  # noqa: BLE001
+        return None
+    if not person.active:
+        return None
+    return user_id
 
 
 def _require_user(request: Request) -> str | RedirectResponse:
@@ -92,7 +108,9 @@ def _login_ctx(request: Request, error: str | None = None) -> dict[str, Any]:
     resolver = request.app.state.services.resolver
     return {
         "auth_mode": settings.auth_mode,
-        "people": resolver.people,
+        # Person pickers exclude deactivated people (D23) — the dev picker is the only
+        # one that exists so far.
+        "people": [p for p in resolver.people if p.active],
         "error": error,
         "google_oauth_configured": _get_oauth_provider(request) is not None,
         "active_user": None,
@@ -119,6 +137,10 @@ def login_post(
         person = resolver.by_id(user)
     except Exception:  # noqa: BLE001
         return _render(request, "login.html", _login_ctx(request, error=f"Unknown user: {user!r}"))
+    if not person.active:
+        return _render(
+            request, "login.html", _login_ctx(request, error="This account is deactivated.")
+        )
     sm = _get_session_manager(request)
     token = sm.issue(person.id)
     redirect = RedirectResponse("/", status_code=303)
@@ -199,6 +221,8 @@ def google_callback(
         person = resolver.by_email(email)
     except Exception:  # noqa: BLE001
         return _login_error("This Google account is not registered for this assistant.")
+    if not person.active:
+        return _login_error("This account has been deactivated. Contact an admin.")
 
     sm = _get_session_manager(request)
     token = sm.issue(person.id)
@@ -507,3 +531,220 @@ def my_approvals(request: Request) -> _TemplateResponse | RedirectResponse:
     orch = _get_orchestrator(request)
     mine = [a for a in orch.approvals.pending() if a.approver == result]
     return _render(request, "my_approvals.html", {**ctx, "pending": mine})
+
+
+# ------------------------------------------------------------------ admin: people CRUD (D23)
+
+
+def _validate_person_form(
+    resolver: IdentityResolver,
+    person_id: str,
+    name: str,
+    email: str,
+    manager_id: str,
+    backup_owners_raw: str,
+    editing_id: str | None,
+) -> str | None:
+    """Server-side validation for the create/edit person form. None means valid.
+
+    Every referenced id (manager, backup owners) is checked against the resolver —
+    an owner-submitted grant is hostile input in v0.4.1's risk register (R2); an
+    admin-submitted person id is lower-stakes but a typo here silently breaks policy
+    matching later, so it's validated the same way.
+    """
+    if not person_id.strip():
+        return "Id is required."
+    if not name.strip():
+        return "Name is required."
+    if not email.strip():
+        return "Email is required."
+    if editing_id is None:
+        try:
+            resolver.by_id(person_id)
+        except Exception:  # noqa: BLE001
+            pass
+        else:
+            return f"A person with id {person_id!r} already exists."
+    # An email must not silently take over a DIFFERENT person's login (resolver.upsert()
+    # would otherwise leave the previous owner's by-email lookup broken).
+    try:
+        existing_by_email = resolver.by_email(email)
+    except Exception:  # noqa: BLE001
+        existing_by_email = None
+    if existing_by_email is not None and existing_by_email.id != (editing_id or person_id):
+        return f"Email {email!r} already belongs to {existing_by_email.id!r}."
+    if manager_id.strip():
+        try:
+            resolver.by_id(manager_id.strip())
+        except Exception:  # noqa: BLE001
+            return f"Manager id {manager_id!r} does not match any person."
+    for owner in (b.strip() for b in backup_owners_raw.split(",")):
+        if owner and not _person_exists(resolver, owner):
+            return f"Backup owner id {owner!r} does not match any person."
+    return None
+
+
+def _person_exists(resolver: IdentityResolver, person_id: str) -> bool:
+    try:
+        resolver.by_id(person_id)
+    except Exception:  # noqa: BLE001
+        return False
+    return True
+
+
+@router.get("/admin/people", response_class=HTMLResponse, response_model=None)
+def admin_people_list(request: Request) -> Response:
+    result = _require_admin(request)
+    if not isinstance(result, str):
+        return result
+    ctx = _user_ctx(request, result)
+    resolver = request.app.state.services.resolver
+    people = sorted(resolver.people, key=lambda p: p.name.lower())
+    return _render(request, "admin_people.html", {**ctx, "people": people})
+
+
+@router.get("/admin/people/new", response_class=HTMLResponse, response_model=None)
+def admin_people_new_form(request: Request) -> Response:
+    result = _require_admin(request)
+    if not isinstance(result, str):
+        return result
+    ctx = _user_ctx(request, result)
+    return _render(request, "admin_person_form.html", {**ctx, "person": None, "error": None})
+
+
+@router.post("/admin/people/new")
+def admin_people_create(
+    request: Request,
+    person_id: str = Form(...),
+    name: str = Form(...),
+    email: str = Form(...),
+    teams_id: str = Form(default=""),
+    jira_id: str = Form(default=""),
+    hubspot_id: str = Form(default=""),
+    manager_id: str = Form(default=""),
+    backup_owners: str = Form(default=""),
+) -> Response:
+    result = _require_admin(request)
+    if not isinstance(result, str):
+        return result
+    services = request.app.state.services
+    resolver = services.resolver
+
+    error = _validate_person_form(
+        resolver, person_id, name, email, manager_id, backup_owners, editing_id=None
+    )
+    if error:
+        ctx = _user_ctx(request, result)
+        return _render(request, "admin_person_form.html", {**ctx, "person": None, "error": error})
+
+    person = Person(
+        id=person_id.strip(),
+        name=name.strip(),
+        email=email.strip(),
+        teams_id=teams_id.strip() or None,
+        jira_id=jira_id.strip() or None,
+        hubspot_id=hubspot_id.strip() or None,
+        manager_id=manager_id.strip() or None,
+        backup_owners=[b.strip() for b in backup_owners.split(",") if b.strip()],
+    )
+    services.person_repo.upsert(person)
+    resolver.upsert(person)
+    return RedirectResponse(url="/admin/people", status_code=303)
+
+
+@router.get("/admin/people/{person_id}/edit", response_class=HTMLResponse, response_model=None)
+def admin_people_edit_form(request: Request, person_id: str) -> Response:
+    result = _require_admin(request)
+    if not isinstance(result, str):
+        return result
+    resolver = request.app.state.services.resolver
+    try:
+        person = resolver.by_id(person_id)
+    except Exception:  # noqa: BLE001
+        return HTMLResponse("<h1>404 Not Found</h1>", status_code=404)
+    ctx = _user_ctx(request, result)
+    return _render(request, "admin_person_form.html", {**ctx, "person": person, "error": None})
+
+
+@router.post("/admin/people/{person_id}/edit")
+def admin_people_update(
+    request: Request,
+    person_id: str,
+    name: str = Form(...),
+    email: str = Form(...),
+    teams_id: str = Form(default=""),
+    jira_id: str = Form(default=""),
+    hubspot_id: str = Form(default=""),
+    manager_id: str = Form(default=""),
+    backup_owners: str = Form(default=""),
+) -> Response:
+    result = _require_admin(request)
+    if not isinstance(result, str):
+        return result
+    services = request.app.state.services
+    resolver = services.resolver
+    try:
+        existing = resolver.by_id(person_id)
+    except Exception:  # noqa: BLE001
+        return HTMLResponse("<h1>404 Not Found</h1>", status_code=404)
+
+    error = _validate_person_form(
+        resolver, person_id, name, email, manager_id, backup_owners, editing_id=person_id
+    )
+    if error:
+        ctx = _user_ctx(request, result)
+        return _render(
+            request, "admin_person_form.html", {**ctx, "person": existing, "error": error}
+        )
+
+    # roles and active are deliberately not editable here — role changes get their own
+    # audited, last-admin-guarded path (DELIVERY_PLAN.md branch 3); active is toggled only
+    # via the dedicated deactivate/reactivate actions below.
+    updated = existing.model_copy(
+        update={
+            "name": name.strip(),
+            "email": email.strip(),
+            "teams_id": teams_id.strip() or None,
+            "jira_id": jira_id.strip() or None,
+            "hubspot_id": hubspot_id.strip() or None,
+            "manager_id": manager_id.strip() or None,
+            "backup_owners": [b.strip() for b in backup_owners.split(",") if b.strip()],
+        }
+    )
+    services.person_repo.upsert(updated)
+    resolver.upsert(updated)
+    return RedirectResponse(url="/admin/people", status_code=303)
+
+
+@router.post("/admin/people/{person_id}/deactivate")
+def admin_people_deactivate(request: Request, person_id: str) -> Response:
+    result = _require_admin(request)
+    if not isinstance(result, str):
+        return result
+    services = request.app.state.services
+    resolver = services.resolver
+    try:
+        existing = resolver.by_id(person_id)
+    except Exception:  # noqa: BLE001
+        return HTMLResponse("<h1>404 Not Found</h1>", status_code=404)
+    updated = existing.model_copy(update={"active": False})
+    services.person_repo.upsert(updated)
+    resolver.upsert(updated)
+    return RedirectResponse(url="/admin/people", status_code=303)
+
+
+@router.post("/admin/people/{person_id}/reactivate")
+def admin_people_reactivate(request: Request, person_id: str) -> Response:
+    result = _require_admin(request)
+    if not isinstance(result, str):
+        return result
+    services = request.app.state.services
+    resolver = services.resolver
+    try:
+        existing = resolver.by_id(person_id)
+    except Exception:  # noqa: BLE001
+        return HTMLResponse("<h1>404 Not Found</h1>", status_code=404)
+    updated = existing.model_copy(update={"active": True})
+    services.person_repo.upsert(updated)
+    resolver.upsert(updated)
+    return RedirectResponse(url="/admin/people", status_code=303)

@@ -30,7 +30,7 @@ from assistant.connectors.protocols import (
 from assistant.domain.enums import ActionType, GmailAction, System, TeamsAction
 from assistant.domain.models import EmailThread, Task, TeamsThread
 from assistant.identity.connections import ConnectionRegistry
-from assistant.identity.errors import ConnectionNotFound
+from assistant.identity.errors import ConnectionNotFound, PersonDeactivated
 from assistant.identity.resolver import IdentityResolver
 from assistant.orchestrator.responses import AssistantResponse
 from assistant.permissions.approvals import (
@@ -128,6 +128,11 @@ class Orchestrator:
     def connections_registry(self) -> ConnectionRegistry:
         """Read-only access to the connection registry (for connections page)."""
         return self._registry
+
+    @property
+    def resolver(self) -> IdentityResolver:
+        """Read-only access to the identity resolver (for the admin people CRUD, D23)."""
+        return self._resolver
 
     # typed connector accessors (port-typed; real connectors share the method names)
     def _gmail(self) -> GmailPort:
@@ -567,6 +572,16 @@ class Orchestrator:
             raise ApprovalAlreadyDecided(approval_id, approval.status)
         return approval
 
+    def _require_active(self, person_id: str) -> None:
+        """Policy creation is one of D23's four deactivation-guard call sites: a
+        deactivated person can be neither the requester nor the target of a new grant."""
+        try:
+            person = self._resolver.by_id(person_id)
+        except Exception:  # noqa: BLE001
+            return  # unknown person isn't this guard's problem
+        if not person.active:
+            raise PersonDeactivated(person_id)
+
     @staticmethod
     def _override_note(approval: ApprovalRequest, decided_by: str) -> str:
         """Empty for a normal decision; a distinguishing note when it's an override.
@@ -593,6 +608,8 @@ class Orchestrator:
         approval = self._get_pending_approval(approval_id)
         if approval.target_user is None:
             raise ValueError(f"approval {approval_id!r} has no target_user to grant access to")
+        self._require_active(approval.requester)
+        self._require_active(approval.target_user)
         override_note = self._override_note(approval, decided_by)
 
         expiry = self._clock() + timedelta(days=GRANT_DURATION_DAYS)

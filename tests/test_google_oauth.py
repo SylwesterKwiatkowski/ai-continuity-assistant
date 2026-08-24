@@ -150,6 +150,24 @@ def test_google_callback_unregistered_email_refused_no_session(tmp_path: Path) -
     assert client.cookies.get("session") is None
 
 
+def test_google_callback_refuses_a_deactivated_person(tmp_path: Path) -> None:
+    """D23: deactivation is enforced at login regardless of provider (dev picker or Google)."""
+    app, services = _make_app(tmp_path, httpx.MockTransport(_handler_success))
+    services.resolver.upsert(
+        services.resolver.by_id("mark").model_copy(update={"active": False})
+    )
+    client = TestClient(app, raise_server_exceptions=True)
+    client.cookies.set("oauth_state", "the-state")
+    resp = client.get(
+        "/auth/google/callback",
+        params={"code": "auth-code", "state": "the-state"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 200
+    assert "deactivated" in resp.text.lower()
+    assert client.cookies.get("session") is None
+
+
 def test_google_callback_unverified_email_refused(tmp_path: Path) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/token":

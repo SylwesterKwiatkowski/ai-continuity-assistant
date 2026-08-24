@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>People</h1>
+
+<p class="note" style="margin-bottom:1rem;">
+  Deactivate, never delete: policies, connections, and audit events reference people by id.
+  A deactivated person can't log in, can't be named in a new grant, and their existing
+  policies are denied — but the record stays, and reactivating restores everything.
+</p>
+
+<div class="card">
+  <p><a class="btn" href="/admin/people/new">+ New person</a></p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Roles</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in people %}
+        <tr>
+          <td>{{ p.id }}</td>
+          <td>{{ p.name }}</td>
+          <td>{{ p.email }}</td>
+          <td>{{ p.roles | join(', ') or '—' }}</td>
+          <td>
+            {% if p.active %}
+              <span class="connected">active</span>
+            {% else %}
+              <span class="disconnected">deactivated</span>
+            {% endif %}
+          </td>
+          <td>
+            <a href="/admin/people/{{ p.id }}/edit">Edit</a>
+            {% if p.active %}
+            <form method="post" action="/admin/people/{{ p.id }}/deactivate" style="display:inline;">
+              <button type="submit">Deactivate</button>
+            </form>
+            {% else %}
+            <form method="post" action="/admin/people/{{ p.id }}/reactivate" style="display:inline;">
+              <button type="submit">Reactivate</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" style="color:#868e96; text-align:center;">No people yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

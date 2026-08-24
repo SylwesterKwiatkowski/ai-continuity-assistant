@@ -10,6 +10,7 @@ from assistant.identity.errors import (
     AmbiguousPerson,
     ConnectionNotFound,
     IdentityError,
+    PersonDeactivated,
     PersonNotFound,
 )
 from assistant.identity.resolver import IdentityResolver, PersonRepository
@@ -23,6 +24,7 @@ __all__ = [
     "IdentityError",
     "IdentityResolver",
     "InMemoryTokenStore",
+    "PersonDeactivated",
     "PersonNotFound",
     "PersonRepository",
     "SessionManager",

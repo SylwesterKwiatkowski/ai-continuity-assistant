@@ -11,10 +11,10 @@ Status: **v0.1.0-mvp shipped** (M0–M7: security core, mock connectors, orchest
 web app); **v0.2 complete** — trust infrastructure and the Google OAuth login provider have
 both landed, and Google sign-in is live and verified against the deployed instance (client
 credentials live in that host's gitignored `.env`, never in the repo). **v0.2.1 in progress**:
-people are in SQLite behind a real migration mechanism (DELIVERY_PLAN branch 1, DECISIONS
-D22); admin CRUD, deactivation enforcement, role-change auditing, and retiring the dev login
-provider remain. See `IMPLEMENTATION_PLAN.md` for MVP contents; current test count comes from
-CI, not docs.
+people are in SQLite (DELIVERY_PLAN branch 1, DECISIONS D22) and `/admin/people` CRUD with
+full deactivation enforcement has landed (branch 2, DECISIONS D23); role-change auditing and
+retiring the dev login provider remain. See `IMPLEMENTATION_PLAN.md` for MVP contents; current
+test count comes from CI, not docs.
 
 ## v0.2.0 — Trustworthy identity & memory  *(do this first)*
 
@@ -58,14 +58,14 @@ and restarting the host — untenable now that real Google accounts sign in.
       instance to the engine and orchestrator at startup; `resolver.upsert()` makes a new or
       edited person effective in-process, no restart — mirrors D20's
       `engine.add_mailbox_policy()`. See DECISIONS D22.
-- [ ] **Admin user CRUD** at `/admin/people`, gated by the existing `_require_admin`
-      (`web/routes.py`): create, edit (name, email, per-system handles, manager, backup owners),
-      deactivate. Email edits must keep OAuth login working — login resolves by email (D19).
-- [ ] **Deactivate, never hard-delete.** Policies reference people by `Person.id`
-      (`mailbox_owner`, `target_user`, `allowed_requesters`), connections are keyed by `user_id`,
-      and audit events embed ids. A hard delete orphans policies that then silently stop matching
-      and makes the audit trail unreadable. A deactivated person cannot log in, cannot be named
-      in a new policy, and their existing policies evaluate as denied.
+- [x] **Admin user CRUD** at `/admin/people` (2026-08-24), gated by the existing
+      `_require_admin` (`web/routes.py`): create, edit (name, email, per-system handles,
+      manager, backup owners), deactivate/reactivate. Editing an email keeps OAuth login
+      working — verified directly (D19, D23).
+- [x] **Deactivate, never hard-delete** (2026-08-24). A deactivated person cannot log in
+      (including mid-session — enforced on every request, not just at login), cannot be
+      named in a new policy grant, and their existing policies evaluate as denied. Four
+      independent checks consulting the same `Person.active` field — see DECISIONS D23.
 - [ ] **Role changes are audited; the last admin cannot be removed.** `Person.roles` is a
       free-form list where only `"admin"` is meaningful. An admin granting a role — especially to
       themselves — is exactly the event this system exists to record, so it goes through the
@@ -83,7 +83,9 @@ and restarting the host — untenable now that real Google accounts sign in.
 
 **Definition of done:** a colleague is onboarded entirely through `/admin`, signs in with Google,
 and is selectable in policy pickers — no JSON edit, no restart; and no deployed environment can
-authenticate anyone without Google.
+authenticate anyone without Google. *(Onboarding through `/admin` works today; the remaining gap
+is that "signs in with Google" still means one of the three seeded people — a real account for
+`anna` and retiring the dev provider are what's left.)*
 
 ## v0.3.0 — First real connectors (Google side)
 

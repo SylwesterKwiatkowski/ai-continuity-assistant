@@ -103,9 +103,37 @@ class PermissionEngine:
     # ------------------------------------------------------------------ public API
 
     def check(self, req: PermissionRequest) -> PermissionDecision:
+        deactivation_denial = self._check_deactivation(req)
+        if deactivation_denial is not None:
+            return deactivation_denial
         if req.action_type == ActionType.WRITE:
             return self._check_write(req)
         return self._check_read(req)
+
+    def _check_deactivation(self, req: PermissionRequest) -> PermissionDecision | None:
+        """Deactivate, never hard-delete (ROADMAP.md v0.2.1 / DECISIONS.md D23): a
+        deactivated active_user or target_user is denied everything, with no approval
+        path offered — approving wouldn't fix a deactivated account. A no-op if this
+        engine has no resolver wired (some tests construct one without it)."""
+        if self._resolver is None:
+            return None
+        for label, person_id in (
+            ("active_user", req.active_user),
+            ("target_user", req.target_user),
+        ):
+            if person_id is None:
+                continue
+            try:
+                person = self._resolver.by_id(person_id)
+            except Exception:  # noqa: BLE001
+                continue  # unknown person isn't this guard's problem
+            if not person.active:
+                return PermissionDecision(
+                    allowed=False,
+                    access_tier=self._tier_for(req),
+                    reason=f"{label} {person_id!r} is deactivated",
+                )
+        return None
 
     def build_approval_request(
         self, req: PermissionRequest, decision: PermissionDecision

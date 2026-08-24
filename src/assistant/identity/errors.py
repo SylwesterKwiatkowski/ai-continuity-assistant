@@ -22,6 +22,20 @@ class AmbiguousPerson(IdentityError):
         self.matches = matches
 
 
+class PersonDeactivated(IdentityError):
+    """Raised where a deactivated Person is used somewhere only an active one may be
+    (login, a request's active_user/target_user, naming them in a new policy) — D23.
+
+    Deactivate, never hard-delete: the person still resolves by id/email/name, but every
+    enforcement point (login, PermissionEngine.check, Orchestrator.grant_approval, the
+    dev-login picker) refuses them.
+    """
+
+    def __init__(self, person_id: str) -> None:
+        super().__init__(f"Person {person_id!r} is deactivated")
+        self.person_id = person_id
+
+
 class ConnectionNotFound(IdentityError):
     """Raised when the required user has not connected the requested system.
 

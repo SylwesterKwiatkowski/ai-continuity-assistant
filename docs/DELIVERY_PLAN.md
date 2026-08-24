@@ -68,7 +68,7 @@ Pure backend. No user-visible change; the existing suite is the regression net.
 **Done when:** people load from SQLite, `from_seed()` is a first-boot path only, a person added
 directly to the DB is resolvable without a restart, and all 136 existing tests still pass.
 
-### 2. `feature/admin-people-crud`
+### 2. `feature/admin-people-crud` — ✅ done (2026-08-24, DECISIONS D23)
 
 - `/admin/people` routes + template, gated by the existing `_require_admin` (`web/routes.py`).
 - Create, edit (name, email, per-system handles, manager, backup owners), deactivate.
@@ -80,6 +80,12 @@ directly to the DB is resolvable without a restart, and all 136 existing tests s
 
 **Done when:** a colleague is onboarded end-to-end through `/admin`, signs in with Google, and is
 selectable wherever a person can be named — no JSON edit, no restart.
+
+*(Delivered as: one field — `Person.active` — checked at each of the four sites named above,
+rather than a single funnel all four route through; each site already had its own established
+authorization pattern (route guard / engine decision / orchestrator validation), and reusing
+those consistently against the same fact seemed safer than inventing a fifth mechanism to
+funnel through. A dedicated test exists per site, per Risk 3's mitigation.)*
 
 ### 3. `feature/role-audit-guard`
 
@@ -192,12 +198,19 @@ duration maximum. Any one of these is a bypass around the entire permission engi
 happy-path coverage. Validate server-side, never trust the form. Treat every field of an
 owner-submitted grant as hostile.
 
-**R3 — Deactivation is a security control spread across four call sites.**
+**R3 — Deactivation is a security control spread across four call sites.** *(Closed
+2026-08-24, DECISIONS D23 — one test per site, listed below.)*
 Login, policy evaluation, policy creation, and the person pickers.
 *Failure mode:* miss one and a deactivated person retains working delegated access — exactly the
 "revoke the departing employee" scenario the feature exists to serve, failing silently.
 *Mitigation:* one guard the engine consults, plus a test asserting a deactivated person is denied
 through every entry point.
+*Verified:* `test_deactivated_person_cannot_dev_login`,
+`test_deactivating_mid_session_cuts_off_the_next_request`,
+`test_google_callback_refuses_a_deactivated_person` (login); `test_deactivated_active_user_denied`,
+`test_deactivated_target_user_denied` (policy evaluation); `test_grant_approval_refuses_a_
+deactivated_requester`, `test_grant_approval_refuses_a_deactivated_target` (policy creation);
+`test_deactivated_person_excluded_from_dev_picker` (person pickers).
 
 ### Medium
 

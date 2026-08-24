@@ -169,6 +169,47 @@ def test_dev_login_disabled_get_login_shows_no_form(tmp_path: Path) -> None:
     assert "not configured" in resp.text
 
 
+# ------------------------------------------------------------------ D23: deactivated people
+
+
+def test_deactivated_person_cannot_dev_login(tmp_path: Path) -> None:
+    app, services = _make_app(tmp_path)
+    services.resolver.upsert(
+        services.resolver.by_id("mark").model_copy(update={"active": False})
+    )
+    client = TestClient(app, raise_server_exceptions=True)
+    resp = client.post("/login", data={"user": "mark"}, follow_redirects=False)
+    assert resp.status_code == 200  # re-renders the login page with an error, no redirect
+    assert "deactivated" in resp.text.lower()
+    assert client.cookies.get("session") is None
+
+
+def test_deactivated_person_excluded_from_dev_picker(tmp_path: Path) -> None:
+    app, services = _make_app(tmp_path)
+    services.resolver.upsert(
+        services.resolver.by_id("mark").model_copy(update={"active": False})
+    )
+    client = TestClient(app, raise_server_exceptions=True)
+    resp = client.get("/login")
+    assert "Mark Smith" not in resp.text
+    assert "Anna Nowak" in resp.text  # still active, still listed
+
+
+def test_deactivating_mid_session_cuts_off_the_next_request(tmp_path: Path) -> None:
+    app, services = _make_app(tmp_path)
+    client = TestClient(app, raise_server_exceptions=True)
+    login(client, "mark")
+    assert client.get("/").status_code == 200  # session is good so far
+
+    services.resolver.upsert(
+        services.resolver.by_id("mark").model_copy(update={"active": False})
+    )
+
+    resp = client.get("/", follow_redirects=False)
+    assert resp.status_code == 303  # the existing session is no longer honored
+    assert resp.headers["location"] == "/login"
+
+
 # --- supervisor findings: prod must fail closed on dev auth / default secrets ---
 
 def test_prod_rejects_dev_auth_mode() -> None:
